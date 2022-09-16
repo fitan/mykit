@@ -1,122 +1,100 @@
 package myhttp
 
 import (
-	"context"
-	"github.com/go-kit/kit/endpoint"
+	"encoding/json"
+	"fmt"
 	"github.com/go-resty/resty/v2"
-	"io"
+	"github.com/pkg/errors"
+	"github.com/tidwall/gjson"
+	"net/http"
 )
 
 type Client struct {
-	client *resty.Client
+	*resty.Client
 }
 
-func (c *Client) Endpoint(url UrlOption, enc RestyEncodeRequestFunc, dec RestyDecodeResponseFunc, options ...RequestOption) endpoint.Endpoint {
-	r := c.client.R()
-	url(r)
-	request := &Request{
-		req:            makeCreateRequestFunc(r, enc),
-		dec:            dec,
-		before:         make([]RestyRequestFunc, 0),
-		after:          make([]RestyResponseFunc, 0),
-		finalizer:      make([]ClientFinalizerFunc, 0),
-		bufferedStream: false,
-	}
+func NewClient(client *resty.Client, options ...ClientOption) *Client {
+	c := &Client{Client: client}
 	for _, option := range options {
-		option(request)
+		option(c)
 	}
-
-	return request.Endpoint()
+	return c
 }
-
-type UrlOption func(c *resty.Request)
-
-type RequestOption func(request *Request)
 
 type Request struct {
-	req            RestyCreateRequestFunc
-	dec            RestyDecodeResponseFunc
-	before         []RestyRequestFunc
-	after          []RestyResponseFunc
-	finalizer      []ClientFinalizerFunc
-	bufferedStream bool
+	*resty.Request
+	before []BeforeFunc
+	after  []AfterFunc
 }
 
-func (r *Request) Endpoint() endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (interface{}, error) {
-		ctx, cancel := context.WithCancel(ctx)
+func (r *Request) DecodeEx(method, url string, decode Decode, options ...RequestOption) (*resty.Response, error) {
+	for _, option := range options {
+		option(r)
+	}
 
-		var (
-			resp *resty.Response
-			err  error
-		)
-		if r.finalizer != nil {
-			defer func() {
-				//if resp != nil {
-				//	ctx = context.WithValue(ctx, ContextKeyResponseHeaders, resp.Header)
-				//	ctx = context.WithValue(ctx, ContextKeyResponseSize, resp.Size())
-				//}
-				for _, f := range r.finalizer {
-					f(ctx, err)
-				}
-			}()
-		}
+	for _, before := range r.before {
+		before(r.Request)
+	}
+	resp, err := r.Request.Execute(method, url)
 
-		req, err := r.req(ctx, request)
-		if err != nil {
-			cancel()
-			return nil, err
-		}
+	for _, after := range r.after {
+		after(resp, err)
+	}
 
-		for _, f := range r.before {
-			ctx = f(ctx, req)
-		}
+	return decode(resp, err)
+}
 
-		resp, err = req.SetContext(ctx).Send()
+func (c *Client) R() *Request {
+	r := c.Client.R()
 
-		if err != nil {
-			cancel()
-			return nil, err
-		}
-
-		if r.bufferedStream {
-			resp.RawResponse.Body = bodyWithCancel{ReadCloser: resp.RawResponse.Body, cancel: cancel}
-		} else {
-			defer resp.RawResponse.Body.Close()
-			defer cancel()
-		}
-
-		for _, f := range r.after {
-			ctx = f(ctx, resp)
-		}
-
-		response, err := r.dec(ctx, resp)
-		if err != nil {
-			return nil, err
-		}
-
-		return response, nil
+	return &Request{
+		Request: r,
 	}
 }
 
-func makeCreateRequestFunc(req *resty.Request, enc RestyEncodeRequestFunc) RestyCreateRequestFunc {
-	return func(ctx context.Context, i interface{}) (*resty.Request, error) {
-		err := enc(ctx, req, i)
-		if err != nil {
-			return nil, err
+type Decode func(res *resty.Response, err error) (*resty.Response, error)
+
+// 默认返回对象
+type DefaultResponse struct {
+	Code    int    `json:"code"`
+	Data    string `json:"data"`
+	Message string `json:"message"`
+	TraceID string `json:"trace_id"`
+}
+
+func DecodeJsonData(i interface{}) Decode {
+	return func(resp *resty.Response, err error) (*resty.Response, error) {
+		if resp.StatusCode() != http.StatusOK {
+			return resp, fmt.Errorf("unexpected status code %d", resp.StatusCode())
 		}
-		return req, nil
+
+		if _, ok := i.(*string); ok {
+			i = resp.String()
+			return resp, nil
+		}
+
+		result := gjson.GetBytes(resp.Body(), "code")
+		if !result.Exists() {
+			err := json.Unmarshal(resp.Body(), i)
+			if err != nil {
+				err = errors.Wrap(err, "unmarshal response")
+				return resp, err
+			}
+			return resp, nil
+		}
+
+		if result.Int() != http.StatusOK {
+			s := gjson.Get(resp.String(), "err").String()
+			return resp, fmt.Errorf("response err: %s", s)
+		}
+
+		dataResult := gjson.GetBytes(resp.Body(), "data")
+		err = json.Unmarshal(resp.Body()[dataResult.Index:result.Index+len(result.Raw)], i)
+		if err != nil {
+			err = errors.Wrap(err, "unmarshal response data")
+			return resp, err
+		}
+
+		return resp, nil
 	}
-}
-
-type bodyWithCancel struct {
-	io.ReadCloser
-
-	cancel context.CancelFunc
-}
-
-func (bwc bodyWithCancel) Close() error {
-	bwc.ReadCloser.Close()
-	bwc.cancel()
-	return nil
 }
