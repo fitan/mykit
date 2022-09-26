@@ -16,6 +16,10 @@ type DB struct {
 	db *gorm.DB
 }
 
+func New(db *gorm.DB) *DB {
+	return &DB{db: db}
+}
+
 // ctx中包含db则返回db，如果不包含申请一个
 func (d *DB) GetDb(ctx context.Context) (db *gorm.DB) {
 	db, ok := ctx.Value(CtxDbKey).(*gorm.DB)
@@ -54,8 +58,4 @@ func (d *DB) Tx(ctx context.Context) (res context.Context, fn func(err error) (r
 
 func (d *DB) Db() *gorm.DB {
 	return d.db
-}
-
-func New(db *gorm.DB) *DB {
-	return &DB{db: db}
 }

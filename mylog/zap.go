@@ -8,11 +8,9 @@ import (
 	"path"
 )
 
-func New(name string, dir string, openLevel zapcore.Level) (*zap.SugaredLogger, zap.AtomicLevel) {
-	atomicLevel := zap.NewAtomicLevelAt(openLevel)
-	l := zap.New(DefaultZapCore(name, dir, atomicLevel)).Sugar()
-
-	return l, atomicLevel
+func New(name string, dir string, level zap.AtomicLevel) *zap.SugaredLogger {
+	l := zap.New(DefaultZapCore(name, dir, level)).Sugar()
+	return l
 }
 
 func DefaultZapCore(fileName string, dir string, openLevel zap.AtomicLevel) zapcore.Core {
