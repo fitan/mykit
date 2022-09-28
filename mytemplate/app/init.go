@@ -3,10 +3,12 @@ package app
 import (
 	"github.com/fitan/mykit/myconf"
 	"github.com/fitan/mykit/mygorm"
+	"github.com/fitan/mykit/myinit"
 	"github.com/fitan/mykit/mylog"
 	"github.com/fitan/mykit/myrouter"
 	"github.com/fitan/mykit/mytemplate/conf"
 	"github.com/fitan/mykit/mytemplate/handlers"
+	"github.com/hashicorp/consul/api"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/driver/mysql"
@@ -55,4 +57,24 @@ type initHandlerWire struct {
 func initHandler(router *myrouter.Router) initHandlerWire {
 	handlers.Handlers(router.Router)
 	return initHandlerWire{}
+}
+
+func initConsul(conf *conf.Conf, log *zap.SugaredLogger) (*api.Client, error) {
+	log.Infow("init consul staring...")
+	defer log.Infow("init consul end...")
+	cfg := api.DefaultConfig()
+	cfg.Address = conf.Consul.Addr
+	cfg.Token = conf.Consul.Token
+	return api.NewClient(cfg)
+}
+
+type zapSugarLogger func(msg string, keysAndValues ...interface{})
+
+func (l zapSugarLogger) Log(kv ...interface{}) error {
+	l("", kv...)
+	return nil
+}
+
+func initSD(conf *conf.Conf, client *api.Client, log *zap.SugaredLogger) (*myinit.SD, error) {
+	return myinit.InitSD(conf.App.Name, conf.App.Addr, conf.App.Port, client, log)
 }

@@ -24,11 +24,20 @@ func InitApp() (App, error) {
 	if err != nil {
 		return App{}, err
 	}
+	client, err := initConsul(conf, sugaredLogger)
+	if err != nil {
+		return App{}, err
+	}
+	sd, err := initSD(conf, client, sugaredLogger)
+	if err != nil {
+		return App{}, err
+	}
 	app := App{
 		Router: router,
 		Gorm:   db,
 		Log:    sugaredLogger,
 		Cfg:    conf,
+		SD:     sd,
 	}
 	return app, nil
 }
@@ -47,11 +56,17 @@ var handlerSet = wire.NewSet(initHandler)
 
 var atomicLevelSet = wire.NewSet(initAtomicLevel)
 
+var consulSet = wire.NewSet(initConsul)
+
+var SdSet = wire.NewSet(initSD)
+
 var initSet = wire.NewSet(
+	consulSet,
 	confSet,
 	gormSet,
 	logSet,
 	routerSet,
 	handlerSet,
 	atomicLevelSet,
+	SdSet,
 )

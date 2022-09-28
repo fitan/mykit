@@ -1,6 +1,7 @@
 App:
   Name: mykit
-  Addr: ":8080"
+  Addr: ""
+  Port: 8080
 
 
 Mysql:
@@ -10,3 +11,7 @@ Log:
   Dir: "./logs"
   Level: 0
 
+
+Consul:
+  Addr: localhost:8500
+  Token: ""

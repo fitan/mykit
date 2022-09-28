@@ -2,7 +2,6 @@ package myrouter
 
 import (
 	"context"
-	"fmt"
 	"github.com/fitan/mykit/myhttp"
 	"github.com/fitan/mykit/myhttpmid"
 	"github.com/google/gops/agent"
@@ -14,7 +13,6 @@ import (
 	metricsMid "github.com/slok/go-http-metrics/middleware"
 	"github.com/slok/go-http-metrics/middleware/std"
 	"go.uber.org/zap"
-	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -84,9 +82,7 @@ func (r *Router) Run(addr string) {
 		addr = "localhost:8080"
 	}
 
-	fmt.Println("start r.walk")
 	r.walk()
-	fmt.Println("r.walk")
 
 	server := &http.Server{
 		Addr:    addr,
@@ -122,11 +118,12 @@ func (r *Router) Run(addr string) {
 	r.log.Infof("server listening at %s", addr)
 	err := server.ListenAndServe()
 	if err != nil && err != http.ErrServerClosed {
-		log.Fatal(err)
+		r.log.Fatal(err)
 	}
 
 	// Wait for server context to be stopped
 	<-serverCtx.Done()
+	r.log.Infow("server done...")
 }
 
 func (r *Router) switchDebug() {
@@ -152,6 +149,5 @@ func New() *Router {
 	router.metric()
 	router.switchDebug()
 	router.gops()
-	fmt.Println("return router")
 	return router
 }
