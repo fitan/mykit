@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"github.com/fitan/mykit/myconf"
 	"github.com/fitan/mykit/mygorm"
 	"github.com/fitan/mykit/myhttp"
@@ -12,11 +13,19 @@ import (
 	httpkit "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
 	"github.com/hashicorp/consul/api"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"net/http"
+	"os"
+	"time"
 )
 
 func initConf() (*conf.Conf, error) {
@@ -79,6 +88,32 @@ func initConsul(conf *conf.Conf, log *zap.SugaredLogger) (*api.Client, error) {
 
 func initSD(conf *conf.Conf, client *api.Client, log *zap.SugaredLogger) (*myinit.SD, error) {
 	return myinit.InitSD(conf.App.Name, conf.App.Addr, conf.App.Port, client, log)
+}
+
+func initTracer(conf *conf.Conf, log *zap.SugaredLogger) *sdktrace.TracerProvider {
+	ctx := context.Background()
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			// the service name used to display traces in backends
+			semconv.ServiceNameKey.String(conf.App.Name),
+		),
+	)
+	if err != nil {
+		log.Fatalw("resource.New", "err", err.Error())
+	}
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(conf.Trace.TracerProviderAddr)))
+	if err != nil {
+		log.Fatalw("jaeger.New", "err", err.Error())
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+	)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	otel.SetTracerProvider(tp)
+	return tp
 }
 
 func initHttpServiceOptions(log *zap.SugaredLogger) []httpkit.ServerOption {

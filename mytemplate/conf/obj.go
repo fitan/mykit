@@ -5,6 +5,7 @@ type Conf struct {
 	Mysql  Mysql  `yaml:"Mysql"`
 	Log    Log    `yaml:"Log"`
 	Consul Consul `yaml:"Consul"`
+	Trace  Trace  `yaml:"Trace"`
 }
 type App struct {
 	Name string `yaml:"Name"`
@@ -22,4 +23,8 @@ type Log struct {
 type Consul struct {
 	Addr  string `yaml:"Addr"`
 	Token string `yaml:"Token"`
+}
+
+type Trace struct {
+	TracerProviderAddr string `yaml:"TracerProviderAddr"`
 }
