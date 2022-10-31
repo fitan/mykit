@@ -7,23 +7,27 @@
 package app
 
 import (
+	"github.com/fitan/mykit/mytemplate/services"
+	"github.com/fitan/mykit/mytemplate/services/hello"
 	"github.com/google/wire"
 )
 
 // Injectors from wire.go:
 
 func InitApp() (App, error) {
+	router := initMux()
 	conf, err := initConf()
 	if err != nil {
 		return App{}, err
 	}
 	atomicLevel := initAtomicLevel(conf)
 	sugaredLogger := initLog(conf, atomicLevel)
-	router := initRouter(sugaredLogger, atomicLevel)
+	myrouterRouter := initRouter(router, sugaredLogger, atomicLevel)
 	db, err := initGORM(conf, sugaredLogger)
 	if err != nil {
 		return App{}, err
 	}
+	mygormDB := initMyGORM(db, sugaredLogger)
 	client, err := initConsul(conf, sugaredLogger)
 	if err != nil {
 		return App{}, err
@@ -32,12 +36,22 @@ func InitApp() (App, error) {
 	if err != nil {
 		return App{}, err
 	}
+	service := hello.NewService(sugaredLogger)
+	v := initEndpointMiddleware()
+	mws := hello.NewMws(v)
+	v2 := initHttpServiceOptions(sugaredLogger)
+	ops := hello.NewOps(v2)
+	handler := hello.MakeHTTPHandler(router, service, mws, ops)
+	handlers := services.Handlers{
+		Hello: handler,
+	}
 	app := App{
-		Router: router,
-		Gorm:   db,
-		Log:    sugaredLogger,
-		Cfg:    conf,
-		SD:     sd,
+		Router:   myrouterRouter,
+		Gorm:     mygormDB,
+		Log:      sugaredLogger,
+		Cfg:      conf,
+		SD:       sd,
+		Handlers: handlers,
 	}
 	return app, nil
 }
@@ -52,13 +66,19 @@ var logSet = wire.NewSet(initLog)
 
 var routerSet = wire.NewSet(initRouter)
 
-var handlerSet = wire.NewSet(initHandler)
-
 var atomicLevelSet = wire.NewSet(initAtomicLevel)
 
 var consulSet = wire.NewSet(initConsul)
 
-var SdSet = wire.NewSet(initSD)
+var sdSet = wire.NewSet(initSD)
+
+var myGORMSet = wire.NewSet(initMyGORM)
+
+var mwsSet = wire.NewSet(initEndpointMiddleware)
+
+var optsSet = wire.NewSet(initHttpServiceOptions)
+
+var muxSet = wire.NewSet(initMux)
 
 var initSet = wire.NewSet(
 	consulSet,
@@ -66,7 +86,10 @@ var initSet = wire.NewSet(
 	gormSet,
 	logSet,
 	routerSet,
-	handlerSet,
 	atomicLevelSet,
-	SdSet,
+	sdSet,
+	myGORMSet,
+	mwsSet,
+	optsSet,
+	muxSet, services.Iset,
 )

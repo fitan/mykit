@@ -136,8 +136,7 @@ func (r *Router) Setlog(log *zap.SugaredLogger) {
 	r.log = log
 }
 
-func New() *Router {
-	r := mux.NewRouter()
+func New(r *mux.Router) *Router {
 	zaplog, _ := zap.NewProduction()
 	router := &Router{
 		Router: r,

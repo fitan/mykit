@@ -5,11 +5,19 @@ import (
 	"net/http"
 )
 
+// 默认返回对象
+type Response struct {
+	Code    int         `json:"code"`
+	Data    interface{} `json:"data"`
+	Error   error       `json:"message"`
+	TraceID string      `json:"trace_id"`
+}
+
 func ResponseJsonEncode(w http.ResponseWriter, v interface{}) {
 	res, err := json.Marshal(v)
 	if err != nil {
 		w.WriteHeader(http.StatusForbidden)
-		w.Write([]byte(err.Error()))
+		_, _ = w.Write([]byte(err.Error()))
 		return
 	}
 	w.WriteHeader(http.StatusOK)

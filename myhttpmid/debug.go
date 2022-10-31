@@ -48,9 +48,9 @@ func (d *debugSwitch) Middleware(next http.Handler) http.Handler {
 				continue
 			}
 			r = r.WithContext(context.WithValue(r.Context(), ContextKeyDebugEnable, has))
-			next.ServeHTTP(w, r)
 			break
 		}
+		next.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(fn)
 }

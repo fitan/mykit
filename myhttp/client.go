@@ -54,14 +54,6 @@ func (c *Client) R() *Request {
 
 type Decode func(res *resty.Response, err error) (*resty.Response, error)
 
-// 默认返回对象
-type DefaultResponse struct {
-	Code    int    `json:"code"`
-	Data    string `json:"data"`
-	Message string `json:"message"`
-	TraceID string `json:"trace_id"`
-}
-
 func DecodeJsonData(i interface{}) Decode {
 	return func(resp *resty.Response, err error) (*resty.Response, error) {
 		if resp.StatusCode() != http.StatusOK {

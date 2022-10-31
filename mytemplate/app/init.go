@@ -3,11 +3,14 @@ package app
 import (
 	"github.com/fitan/mykit/myconf"
 	"github.com/fitan/mykit/mygorm"
+	"github.com/fitan/mykit/myhttp"
 	"github.com/fitan/mykit/myinit"
 	"github.com/fitan/mykit/mylog"
 	"github.com/fitan/mykit/myrouter"
 	"github.com/fitan/mykit/mytemplate/conf"
-	"github.com/fitan/mykit/mytemplate/handlers"
+	"github.com/go-kit/kit/endpoint"
+	httpkit "github.com/go-kit/kit/transport/http"
+	"github.com/gorilla/mux"
 	"github.com/hashicorp/consul/api"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -25,11 +28,21 @@ func initConf() (*conf.Conf, error) {
 	return &v, nil
 }
 
-func initGORM(conf *conf.Conf, log *zap.SugaredLogger) (*mygorm.DB, error) {
+func initGORM(conf *conf.Conf, log *zap.SugaredLogger) (*gorm.DB, error) {
 	log.Infow("init gorm staring...")
 	defer log.Infow("init gorm end...")
 	db, err := gorm.Open(mysql.Open(conf.Mysql.DSN))
-	return mygorm.New(db), err
+	if err != nil {
+		return db, err
+	}
+
+	return db, nil
+}
+
+func initMyGORM(db *gorm.DB, log *zap.SugaredLogger) *mygorm.DB {
+	log.Infow("init gorm staring...")
+	defer log.Infow("init gorm end...")
+	return mygorm.New(db)
 }
 
 func initAtomicLevel(conf *conf.Conf) zap.AtomicLevel {
@@ -41,22 +54,18 @@ func initLog(conf *conf.Conf, level zap.AtomicLevel) *zap.SugaredLogger {
 	return log
 }
 
-func initRouter(log *zap.SugaredLogger, level zap.AtomicLevel) *myrouter.Router {
+func initMux() *mux.Router {
+	return mux.NewRouter()
+}
+
+func initRouter(r *mux.Router, log *zap.SugaredLogger, level zap.AtomicLevel) *myrouter.Router {
 	log.Infow("init router staring...")
 	defer log.Infow("init router end...")
 
-	r := myrouter.New()
-	r.Setlog(log)
-	r.Methods(http.MethodPut).Path("/log").Handler(level)
-	return r
-}
-
-type initHandlerWire struct {
-}
-
-func initHandler(router *myrouter.Router) initHandlerWire {
-	handlers.Handlers(router.Router)
-	return initHandlerWire{}
+	myR := myrouter.New(r)
+	myR.Setlog(log)
+	myR.Methods(http.MethodPut).Path("/log").Handler(level)
+	return myR
 }
 
 func initConsul(conf *conf.Conf, log *zap.SugaredLogger) (*api.Client, error) {
@@ -68,13 +77,23 @@ func initConsul(conf *conf.Conf, log *zap.SugaredLogger) (*api.Client, error) {
 	return api.NewClient(cfg)
 }
 
-type zapSugarLogger func(msg string, keysAndValues ...interface{})
-
-func (l zapSugarLogger) Log(kv ...interface{}) error {
-	l("", kv...)
-	return nil
-}
-
 func initSD(conf *conf.Conf, client *api.Client, log *zap.SugaredLogger) (*myinit.SD, error) {
 	return myinit.InitSD(conf.App.Name, conf.App.Addr, conf.App.Port, client, log)
+}
+
+func initHttpServiceOptions(log *zap.SugaredLogger) []httpkit.ServerOption {
+	options := make([]httpkit.ServerOption, 0)
+	options = append(options,
+		httpkit.ServerErrorHandler(myhttp.NewErrorHandler(log)),
+		httpkit.ServerErrorEncoder(myhttp.ErrorEncoder),
+		httpkit.ServerBefore(
+			httpkit.PopulateRequestContext,
+		),
+	)
+
+	return options
+}
+
+func initEndpointMiddleware() (res []endpoint.Middleware) {
+	return
 }

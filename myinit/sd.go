@@ -92,8 +92,8 @@ func InitSD(name, ip string, port int, client *api.Client, log *zap.SugaredLogge
 		Address: ip,
 		Check: &api.AgentServiceCheck{
 			CheckID:                        id,
-			TTL:                            "10s",
-			DeregisterCriticalServiceAfter: "5s",
+			TTL:                            "15s",
+			DeregisterCriticalServiceAfter: "15s",
 		},
 	}, zapSugarLogger(log.Infow))
 
