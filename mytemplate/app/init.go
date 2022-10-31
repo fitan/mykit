@@ -24,8 +24,6 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"net/http"
-	"os"
-	"time"
 )
 
 func initConf() (*conf.Conf, error) {
