@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"github.com/fitan/mykit/myconf"
 	"github.com/fitan/mykit/mygorm"
 	"github.com/fitan/mykit/myinit"
@@ -9,6 +10,12 @@ import (
 	"github.com/fitan/mykit/mytemplate/conf"
 	"github.com/fitan/mykit/mytemplate/handlers"
 	"github.com/hashicorp/consul/api"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/jaeger"
+	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/sdk/resource"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	semconv "go.opentelemetry.io/otel/semconv/v1.12.0"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gorm.io/driver/mysql"
@@ -94,4 +101,30 @@ func (l zapSugarLogger) Log(kv ...interface{}) error {
 
 func initSD(conf *conf.Conf, client *api.Client, log *zap.SugaredLogger) (*myinit.SD, error) {
 	return myinit.InitSD(conf.App.Name, conf.App.Addr, conf.App.Port, client, log)
+}
+
+func initTracer(conf *conf.Conf, log *zap.SugaredLogger) *sdktrace.TracerProvider {
+	ctx := context.Background()
+
+	res, err := resource.New(ctx,
+		resource.WithAttributes(
+			// the service name used to display traces in backends
+			semconv.ServiceNameKey.String(conf.App.Name),
+		),
+	)
+	if err != nil {
+		log.Fatalw("resource.New", "err", err.Error())
+	}
+	exporter, err := jaeger.New(jaeger.WithCollectorEndpoint(jaeger.WithEndpoint(conf.Trace.TracerProviderAddr)))
+	if err != nil {
+		log.Fatalw("jaeger.New", "err", err.Error())
+	}
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSampler(sdktrace.AlwaysSample()),
+		sdktrace.WithBatcher(exporter),
+		sdktrace.WithResource(res),
+	)
+	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(propagation.TraceContext{}, propagation.Baggage{}))
+	otel.SetTracerProvider(tp)
+	return tp
 }
