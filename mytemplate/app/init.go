@@ -13,6 +13,7 @@ import (
 	httpkit "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
 	"github.com/hashicorp/consul/api"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/gorilla/mux/otelmux"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/jaeger"
 	"go.opentelemetry.io/otel/propagation"
@@ -26,9 +27,11 @@ import (
 	"net/http"
 )
 
-func initConf() (*conf.Conf, error) {
+type ConfName string
+
+func initConf(confName ConfName) (*conf.Conf, error) {
 	v := conf.Conf{}
-	err := myconf.ReadFile("conf_dev.yaml", []string{"./"}, &v)
+	err := myconf.ReadFile(string(confName) + ".yaml", []string{"./"}, &v)
 	if err != nil {
 		return nil, err
 	}
@@ -61,8 +64,10 @@ func initLog(conf *conf.Conf, level zap.AtomicLevel) *zap.SugaredLogger {
 	return log
 }
 
-func initMux() *mux.Router {
-	return mux.NewRouter()
+func initMux(conf conf.Conf) *mux.Router {
+	m := mux.NewRouter()
+	m.Use(otelmux.Middleware(conf.App.Name))
+	return m
 }
 
 func initRouter(r *mux.Router, log *zap.SugaredLogger, level zap.AtomicLevel) *myrouter.Router {

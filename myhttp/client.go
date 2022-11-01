@@ -1,6 +1,7 @@
 package myhttp
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/go-resty/resty/v2"
@@ -21,10 +22,18 @@ func NewClient(client *resty.Client, options ...ClientOption) *Client {
 	return c
 }
 
+type contextKey int
+const HttpRequestName contextKey = 1
+
 type Request struct {
 	*resty.Request
 	before []BeforeFunc
 	after  []AfterFunc
+}
+
+func (r *Request) WithName(name string)  {
+	ctx := context.WithValue(r.Context(), HttpRequestName, name)
+	r.SetContext(ctx)
 }
 
 func (r *Request) DecodeEx(method, url string, decode Decode, options ...RequestOption) (*resty.Response, error) {

@@ -28,7 +28,11 @@ to quickly create a Cobra application.`,
 	},
 }
 
+var confName string
+
 func init() {
+	appCmd.Flags().StringVarP(&confName, "conf", "c", "config", "config file name")
+
 	rootCmd.AddCommand(appCmd)
 
 	// Here you will define your flags and configuration settings.

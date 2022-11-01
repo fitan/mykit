@@ -35,9 +35,9 @@ var initSet = wire.NewSet(
 	services.Iset,
 )
 
-func InitApp() (App, error) {
-	panic(wire.Build(
+func InitApp(confName ConfName) (App, error) {
+	wire.Build(
 		initSet,
-		wire.Struct(new(App), "*")))
+		wire.Struct(new(App), "*"))
 	return App{}, nil
 }
