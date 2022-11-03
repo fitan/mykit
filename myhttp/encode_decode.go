@@ -13,6 +13,13 @@ type Response struct {
 	TraceID string      `json:"trace_id"`
 }
 
+func WrapResponse(data interface{}, err error) (interface{}, error) {
+	return Response{
+		Data:  data,
+		Error: err,
+	}, err
+}
+
 func ResponseJsonEncode(w http.ResponseWriter, v interface{}) {
 	res, err := json.Marshal(v)
 	if err != nil {

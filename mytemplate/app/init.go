@@ -31,7 +31,7 @@ type ConfName string
 
 func initConf(confName ConfName) (*conf.Conf, error) {
 	v := conf.Conf{}
-	err := myconf.ReadFile(string(confName) + ".yaml", []string{"./"}, &v)
+	err := myconf.ReadFile(string(confName)+".yaml", []string{"./"}, &v)
 	if err != nil {
 		return nil, err
 	}
@@ -64,7 +64,7 @@ func initLog(conf *conf.Conf, level zap.AtomicLevel) *zap.SugaredLogger {
 	return log
 }
 
-func initMux(conf conf.Conf) *mux.Router {
+func initMux(conf *conf.Conf) *mux.Router {
 	m := mux.NewRouter()
 	m.Use(otelmux.Middleware(conf.App.Name))
 	return m

@@ -16,7 +16,7 @@ func NewMws(ms []endpoint.Middleware) (res Mws) {
 }
 
 func NewService(log *zap.SugaredLogger) Service {
-	ms := []Middleware{}
+	var ms []Middleware
 	ms = append(ms, NewLogging(log), NewTracing())
 	svc := New()
 
