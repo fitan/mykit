@@ -1,0 +1,18 @@
+App:
+  Name: mykit
+  Addr: ""
+  Port: 8080
+
+
+Mysql:
+  DSN: "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
+
+Log:
+  Dir: "./logs"
+    # debug -1 info 0 warn 1 error 2 dpanic 3 panic 4 fatal 5
+  Level: 0
+
+
+Consul:
+  Addr: 10.170.34.28:8500
+  Token: ""
