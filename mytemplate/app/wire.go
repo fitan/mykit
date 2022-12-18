@@ -4,6 +4,7 @@
 package app
 
 import (
+	"github.com/fitan/mykit/mytemplate/repo"
 	"github.com/fitan/mykit/mytemplate/services"
 	"github.com/google/wire"
 )
@@ -32,7 +33,8 @@ var initSet = wire.NewSet(
 	mwsSet,
 	optsSet,
 	muxSet,
-	services.Iset,
+	repo.Set,
+	services.Set,
 )
 
 func InitApp(confName ConfName) (App, error) {

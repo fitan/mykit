@@ -1,10 +1,14 @@
 package hello
 
-func queryDTO(v Query) (res map[string]interface{}) {
-	res = make(map[string]interface{})
+import gorm "gorm.io/gorm"
 
-	res["age = ?"] = v.Age
-	res["email != ?"] = v.Email
+func queryDTO(v Query) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		db = db.Where("age = ?", v.Age)
+		db = db.Where("email = ?", v.Email)
+		db = db.Where("id = ?", v.IDIn)
+		db = db.Where("time = ?", v.BetweenTime)
 
-	return
+		return db
+	}
 }

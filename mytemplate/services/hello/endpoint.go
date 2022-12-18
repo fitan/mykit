@@ -7,7 +7,9 @@ import (
 	endpoint "github.com/go-kit/kit/endpoint"
 )
 
-var HelloMethodName = "Hello"
+const HelloMethodName = "Hello"
+
+var MethodNameList = []string{HelloMethodName}
 
 type Endpoints struct {
 	HelloEndpoint endpoint.Endpoint
@@ -32,8 +34,7 @@ func makeHelloEndpoint(s Service) endpoint.Endpoint {
 
 type Mws map[string][]endpoint.Middleware
 
-func AllMethodAddMws(mw Mws, m endpoint.Middleware) {
-	methods := []string{HelloMethodName}
+func MethodAddMws(mw Mws, m endpoint.Middleware, methods []string) {
 	for _, v := range methods {
 		mw[v] = append(mw[v], m)
 	}

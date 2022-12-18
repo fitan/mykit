@@ -31,7 +31,7 @@ to quickly create a Cobra application.`,
 var confName string
 
 func init() {
-	appCmd.Flags().StringVarP(&confName, "conf", "c", "dev.yaml", "config file name")
+	appCmd.Flags().StringVarP(&confName, "conf", "c", "dev", "config file name")
 
 	rootCmd.AddCommand(appCmd)
 

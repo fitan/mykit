@@ -2,9 +2,8 @@ package hello
 
 import (
 	"context"
-	"github.com/fitan/mykit/myhttp"
-	"github.com/go-kit/kit/endpoint"
 	http1 "net/http"
+	"strings"
 
 	govalidator "github.com/asaskevich/govalidator"
 	http "github.com/go-kit/kit/transport/http"
@@ -23,61 +22,10 @@ func MakeHTTPHandler(r *mux.Router, s Service, mws Mws, ops Ops) Handler {
 
 type Ops map[string][]http.ServerOption
 
-func AllMethodAddOps(options map[string][]http.ServerOption, option http.ServerOption) {
-	methods := []string{HelloMethodName}
+func MethodAddOps(options map[string][]http.ServerOption, option http.ServerOption, methods []string) {
 	for _, v := range methods {
 		options[v] = append(options[v], option)
 	}
-}
-
-type HttpKit struct {
-	service service
-}
-
-func (h *HttpKit) Endpoint() endpoint.Endpoint {
-	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		req := request.(HelloRequest)
-		res, err := h.service.Hello(ctx, req.ID, req.Query)
-		return myhttp.WrapResponse(res, err)
-	}
-}
-
-func (h *HttpKit) DecodeRequest(ctx context.Context, r *http1.Request) (res interface{}, err error) {
-	req := HelloRequest{}
-
-	var age string
-
-	var email string
-
-	var id string
-
-	vars := mux.Vars(r)
-
-	id = vars["id"]
-
-	age = r.URL.Query().Get("age")
-
-	email = r.URL.Query().Get("email")
-
-	req.ID = id
-
-	req.Query.Age = age
-
-	req.Query.Email = email
-
-	validReq, err := govalidator.ValidateStruct(req)
-
-	if err != nil {
-		err = errors.Wrap(err, "govalidator.ValidateStruct")
-		return
-	}
-
-	if !validReq {
-		err = errors.Wrap(err, "valid false")
-		return
-	}
-
-	return req, err
 }
 
 /*
@@ -91,7 +39,9 @@ Hello
 @Produce json
 @Param id path string true
 @Param age query string false
+@Param between_time query string false
 @Param email query string false
+@Param idIn query string false
 @Success 200 {object} encode.Response{data=HelloResponse}
 @Router /hello/{id} [GET]
 */
@@ -99,25 +49,37 @@ func decodeHelloRequest(ctx context.Context, r *http1.Request) (res interface{},
 
 	req := HelloRequest{}
 
-	var age string
+	var _age string
 
-	var email string
+	var _email string
 
-	var id string
+	var _idIn []string
+
+	var _between_time []string
+
+	var _id string
 
 	vars := mux.Vars(r)
 
-	id = vars["id"]
+	_id = vars["id"]
 
-	age = r.URL.Query().Get("age")
+	_age = r.URL.Query().Get("age")
 
-	email = r.URL.Query().Get("email")
+	_email = r.URL.Query().Get("email")
 
-	req.ID = id
+	_idIn = strings.Split(r.URL.Query().Get("idIn"), ",")
 
-	req.Query.Age = age
+	_between_time = strings.Split(r.URL.Query().Get("between_time"), ",")
 
-	req.Query.Email = email
+	req.ID = _id
+
+	req.Query.IDIn = _idIn
+
+	req.Query.BetweenTime = _between_time
+
+	req.Query.Age = _age
+
+	req.Query.Email = _email
 
 	validReq, err := govalidator.ValidateStruct(req)
 

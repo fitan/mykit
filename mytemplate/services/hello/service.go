@@ -26,6 +26,8 @@ func (s *service) Hello(ctx context.Context, id string, query Query) (res HelloR
 	return
 }
 
-func New() Service {
+type BaseService Service
+
+func New() BaseService {
 	return &service{}
 }

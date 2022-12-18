@@ -2,6 +2,15 @@ package mygorm
 
 import "gorm.io/gorm"
 
+func WhereEqScope(i interface{}) func(db *gorm.DB) *gorm.DB {
+	return func(db *gorm.DB) *gorm.DB {
+		if i != nil {
+			return db.Where(i)
+		}
+		return db
+	}
+}
+
 // 分页对象
 type Paging struct {
 	// 页码

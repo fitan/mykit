@@ -10,26 +10,25 @@ import (
 func NewMws(ms []endpoint.Middleware) (res Mws) {
 	res = Mws{}
 	for _, v := range ms {
-		AllMethodAddMws(res, v)
+		MethodAddMws(res, v, MethodNameList)
 	}
 	return
 }
 
-func NewService(log *zap.SugaredLogger) Service {
+func NewService(base BaseService, log *zap.SugaredLogger) Service {
 	var ms []Middleware
 	ms = append(ms, NewLogging(log), NewTracing())
-	svc := New()
 
 	for _, m := range ms {
-		svc = m(svc)
+		base = m(base)
 	}
-	return svc
+	return base
 }
 
 func NewOps(ops []http.ServerOption) (res Ops) {
 	res = Ops{}
 	for _, v := range ops {
-		AllMethodAddOps(res, v)
+		MethodAddOps(res, v, MethodNameList)
 	}
 	return
 }
@@ -37,6 +36,7 @@ func NewOps(ops []http.ServerOption) (res Ops) {
 var HelloSet = wire.NewSet(
 	MakeHTTPHandler,
 	NewService,
+	New,
 	NewOps,
 	NewMws,
 )
