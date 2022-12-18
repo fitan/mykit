@@ -150,18 +150,20 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 	}
 
 	fn = func(db *gorm.DB) *gorm.DB {
-		return db.Session(&gorm.Session{NewDB: true}).Table(tableName).Where(tmpField.DBName+" "+param.sqlOp, sqlValue)
+		//return db.Session(&gorm.Session{NewDB: true}).Table(tableName).Where(tmpField.DBName+" "+param.sqlOp, sqlValue)
+		return db.Table(tableName).Where(tmpField.DBName+" "+param.sqlOp, sqlValue)
 	}
 
 	for i := len(relationTables) - 1; i >= 0; i-- {
 		r := relationTables[i]
-		fmt.Println(r)
 
-		tmpFn := func(db *gorm.DB) *gorm.DB {
-			return db.Session(&gorm.Session{NewDB: true}).Table(r.tableName).Where(r.foreignKey+" = ?", fn(db).Select(r.primaryKey))
+		tmpFn := fn
+
+		fn = func(db *gorm.DB) *gorm.DB {
+			value := tmpFn(db.Session(&gorm.Session{NewDB: true})).Select(r.primaryKey)
+			return db.Session(&gorm.Session{NewDB: true}).Table(r.tableName).Where(r.foreignKey+" = ?", value)
 		}
 
-		fn = tmpFn
 	}
 
 	return
