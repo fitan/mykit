@@ -47,16 +47,19 @@ func Q(r *http.Request, t interface{}) (fns []func(db *gorm.DB) *gorm.DB, err er
 		return
 	}
 	qList, ok := r.URL.Query()["q"]
+	fmt.Println(qList)
 	if !ok {
 		return
 	}
 	reg, _ := regexp.Compile(`[!?~=><]+`)
 
 	for _, v := range qList {
+		fmt.Println("v", v)
 		var pq qParam
 		var fn func(db *gorm.DB) *gorm.DB
 		op := reg.FindString(v)
 		pq, err = parseQ(v, op)
+		fmt.Println("pq", pq)
 		if err != nil {
 			return
 		}
@@ -123,7 +126,7 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 			return
 		}
 		relationTables = append(relationTables, relationTable{
-			tableName:  tmpSchema.FieldsByName[v].DBName,
+			tableName:  tmpSchema.Relationships.Relations[v].FieldSchema.Table,
 			foreignKey: tmpSchema.Relationships.Relations[v].References[0].ForeignKey.DBName,
 			primaryKey: tmpSchema.Relationships.Relations[v].References[0].PrimaryKey.DBName,
 		})
@@ -142,26 +145,24 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 		tmpSchema = tmpSchema.Relationships.Relations[v].FieldSchema
 	}
 
-	tableName := tmpSchema.Table
-
 	sqlValue, err := param.toSqlValue()
 	if err != nil {
 		return
 	}
 
 	fn = func(db *gorm.DB) *gorm.DB {
-		//return db.Session(&gorm.Session{NewDB: true}).Table(tableName).Where(tmpField.DBName+" "+param.sqlOp, sqlValue)
-		return db.Table(tableName).Where(tmpField.DBName+" "+param.sqlOp, sqlValue)
+		return db.Where(tmpField.DBName+" "+param.sqlOp, sqlValue)
 	}
 
 	for i := len(relationTables) - 1; i >= 0; i-- {
 		r := relationTables[i]
+		fmt.Println(i, r)
 
 		tmpFn := fn
 
 		fn = func(db *gorm.DB) *gorm.DB {
-			value := tmpFn(db.Session(&gorm.Session{NewDB: true})).Select(r.primaryKey)
-			return db.Session(&gorm.Session{NewDB: true}).Table(r.tableName).Where(r.foreignKey+" = ?", value)
+			value := tmpFn(db.Session(&gorm.Session{NewDB: true}).Table(r.tableName)).Select(r.primaryKey)
+			return db.Where(r.foreignKey+" IN (?)", value)
 		}
 
 	}
@@ -175,7 +176,7 @@ func parseQ(s, op string) (res qParam, err error) {
 		err = fmt.Errorf("not found op: %s", op)
 		return
 	}
-	l := strings.Split(s, op)
+	l := strings.SplitN(s, op, 2)
 	if len(l) != 2 {
 		err = fmt.Errorf("wrong format %s", s)
 		return
