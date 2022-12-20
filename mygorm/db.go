@@ -16,7 +16,7 @@ func New(db *gorm.DB) *DB {
 }
 
 // ctx中包含db则返回db，如果不包含申请一个
-func (d *DB) GetDb(ctx context.Context) (db *gorm.DB) {
+func (d *DB) WithContext(ctx context.Context) (db *gorm.DB) {
 	db, ok := ctx.Value(myctx.CtxGormDbKey).(*gorm.DB)
 	if ok {
 		return
@@ -49,8 +49,4 @@ func (d *DB) Tx(ctx context.Context) (res context.Context, commit func(err error
 		}
 	}
 	return
-}
-
-func (d *DB) Db() *gorm.DB {
-	return d.db
 }

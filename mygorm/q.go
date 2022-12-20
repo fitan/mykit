@@ -37,6 +37,8 @@ var ops = map[string]string{
 	"!?=": "not in ?",
 	"~=":  "like ?",
 	"!~=": "not like ?",
+	"><":  "between ? and ?",
+	"<>":  "not between ? and ?",
 	//"isnull": "=null",
 	//"notnull": "!=null",
 }
@@ -72,6 +74,18 @@ func Q(r *http.Request, t interface{}) (fns []func(db *gorm.DB) *gorm.DB, err er
 		fns = append(fns, fn)
 	}
 
+	sortFn, err := SortScope(r, *tSchema)
+	if err != nil {
+		return
+	}
+	fns = append(fns, sortFn)
+
+	pageFn, err := PagingScope(r)
+	if err != nil {
+		return
+	}
+	fns = append(fns, pageFn)
+
 	return
 }
 
@@ -82,12 +96,25 @@ type qParam struct {
 	sqlOp string
 }
 
-func (s qParam) toSqlValue() (res interface{}, err error) {
+func (s qParam) toScope(fieldName string) (res func(db *gorm.DB) *gorm.DB, err error) {
 	switch s.op {
 	case "=", "!=", ">", "<", ">=", "<=", "~=", "!~=":
-		return s.value, nil
+		return func(db *gorm.DB) *gorm.DB {
+			return db.Where(fieldName+" "+s.sqlOp, s.value)
+		}, nil
 	case "?=", "!?=":
-		return strings.Split(s.value, "."), nil
+		return func(db *gorm.DB) *gorm.DB {
+			return db.Where(fieldName+" "+s.sqlOp, strings.Split(s.value, ","))
+		}, nil
+	case "><", "<>":
+		l := strings.SplitN(s.value, ",", 2)
+		if len(l) != 2 {
+			err = fmt.Errorf("wrong format %s", s.value)
+			return
+		}
+		return func(db *gorm.DB) *gorm.DB {
+			return db.Where(fieldName+" "+s.sqlOp, l[0], l[1])
+		}, nil
 	default:
 		return nil, fmt.Errorf("toSqlValue not found op: %s", s.op)
 	}
@@ -145,13 +172,9 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 		tmpSchema = tmpSchema.Relationships.Relations[v].FieldSchema
 	}
 
-	sqlValue, err := param.toSqlValue()
+	fn, err = param.toScope(tmpField.DBName)
 	if err != nil {
 		return
-	}
-
-	fn = func(db *gorm.DB) *gorm.DB {
-		return db.Where(tmpField.DBName+" "+param.sqlOp, sqlValue)
 	}
 
 	for i := len(relationTables) - 1; i >= 0; i-- {

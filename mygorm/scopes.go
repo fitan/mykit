@@ -1,45 +1,76 @@
 package mygorm
 
-import "gorm.io/gorm"
+import (
+	"fmt"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
+	"net/http"
+	"strconv"
+	"strings"
+)
 
-func WhereEqScope(i interface{}) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		if i != nil {
-			return db.Where(i)
-		}
-		return db
+func PagingScope(r *http.Request) (fn func(db *gorm.DB) *gorm.DB, err error) {
+	pageStr := r.URL.Query().Get("page")
+	pageSizeStr := r.URL.Query().Get("pageSize")
+
+	if pageStr == "" || pageSizeStr == "" {
+		return func(db *gorm.DB) *gorm.DB {
+			return db
+		}, nil
 	}
-}
 
-// 分页对象
-type Paging struct {
-	// 页码
-	Page int `json:"page"`
-	// 每页数量
-	PageSize int `json:"pageSize"`
-}
-
-func PagingScope(p Paging) func(db *gorm.DB) *gorm.DB {
-	return func(db *gorm.DB) *gorm.DB {
-		if p.PageSize != 0 && p.Page != 0 {
-			offset := (p.Page - 1) * p.PageSize
-			return db.Offset(offset).Limit(p.PageSize)
-		}
-
-		return db
+	page, err := strconv.Atoi(pageStr)
+	if err != nil {
+		err = fmt.Errorf("page参数错误: %s", pageStr)
+		return
 	}
-}
+	pageSize, err := strconv.Atoi(pageSizeStr)
+	if err != nil {
+		err = fmt.Errorf("pageSize参数错误: %s", pageSizeStr)
+		return
+	}
 
-type Order struct {
-	Order string
+	return func(db *gorm.DB) *gorm.DB {
+		return db.Offset((page - 1) * pageSize).Limit(pageSize)
+	}, nil
 }
 
 // 默认创建时间倒序
-func OrderScope(o Order) func(db *gorm.DB) *gorm.DB {
+func SortScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, err error) {
+	o, ok := r.URL.Query()["sort"]
+	if !ok {
+		return func(db *gorm.DB) *gorm.DB {
+			return db
+		}, nil
+	}
+
+	sortList := make([]string, 0)
+
+	for _, v := range o {
+		l := strings.SplitN(v, ",", 2)
+		if len(l) != 2 {
+			err = fmt.Errorf("sort参数错误: %s", v)
+			return
+		}
+		field := l[0]
+		order := l[1]
+		if order != "asc" && order != "desc" {
+			err = fmt.Errorf("sort参数错误: %s", v)
+			return
+		}
+		f, ok := tSchema.FieldsByName[field]
+		if !ok {
+			err = fmt.Errorf("未知的可排序字段: %s", field)
+			return
+		}
+		dbName := f.DBName
+
+		sortList = append(sortList, dbName+" "+order)
+	}
 	return func(db *gorm.DB) *gorm.DB {
-		if o.Order == "" {
-			return db.Order("created_at desc")
+		for _, v := range sortList {
+			db = db.Order(v)
 		}
 		return db
-	}
+	}, nil
 }
