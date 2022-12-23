@@ -7,24 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
-	"sync"
 )
-
-// [!?~=><]+
-//var ops = map[string]string{
-//	"eq": "=",
-//	"ne": "!=",
-//	"gt": ">",
-//	"lt": "<",
-//	"ge": ">=",
-//	"le": "<=",
-//	"in": "?=",
-//	"nin": "!?=",
-//	"like": "~=",
-//	"nlike": "!~=",
-//	"isnull": "=null",
-//	"notnull": "!=null",
-//}
 
 var ops = map[string]string{
 	"=":   "= ?",
@@ -43,48 +26,29 @@ var ops = map[string]string{
 	//"notnull": "!=null",
 }
 
-func Q(r *http.Request, t interface{}) (fns []func(db *gorm.DB) *gorm.DB, err error) {
-	tSchema, err := schema.Parse(t, &sync.Map{}, schema.NamingStrategy{})
-	if err != nil {
-		return
-	}
+func QScope(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
 	qList, ok := r.URL.Query()["q"]
-	fmt.Println(qList)
 	if !ok {
 		return
 	}
 	reg, _ := regexp.Compile(`[!?~=><]+`)
 
 	for _, v := range qList {
-		fmt.Println("v", v)
 		var pq qParam
 		var fn func(db *gorm.DB) *gorm.DB
 		op := reg.FindString(v)
 		pq, err = parseQ(v, op)
-		fmt.Println("pq", pq)
 		if err != nil {
 			return
 		}
 
-		fn, err = gen(pq, *tSchema)
+		fn, err = gen(pq, tSchema)
 		if err != nil {
 			return
 		}
 
 		fns = append(fns, fn)
 	}
-
-	sortFn, err := SortScope(r, *tSchema)
-	if err != nil {
-		return
-	}
-	fns = append(fns, sortFn)
-
-	pageFn, err := PagingScope(r)
-	if err != nil {
-		return
-	}
-	fns = append(fns, pageFn)
 
 	return
 }
@@ -152,24 +116,40 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 			err = fmt.Errorf("field %s schema is null", v)
 			return
 		}
+
+		relation, ok := tmpSchema.Relationships.Relations[v]
+		if !ok {
+			err = fmt.Errorf("not found relation: %s", v)
+			return
+		}
+
+		if len(relation.References) == 0 {
+			err = fmt.Errorf("not found reference: %s", v)
+			return
+		}
+
 		relationTables = append(relationTables, relationTable{
-			tableName:  tmpSchema.Relationships.Relations[v].FieldSchema.Table,
-			foreignKey: tmpSchema.Relationships.Relations[v].References[0].ForeignKey.DBName,
-			primaryKey: tmpSchema.Relationships.Relations[v].References[0].PrimaryKey.DBName,
+			tableName:  relation.FieldSchema.Table,
+			foreignKey: relation.References[0].ForeignKey.DBName,
+			primaryKey: relation.References[0].PrimaryKey.DBName,
 		})
 
 		//fmt.Println("tmpField", tmpSchema.FieldsByName, v)
 		//fmt.Println("tmpfieldValue", tmpSchema.FieldsByName[v])
 		//spew.Dump(tmpSchema.FieldsByName[v].Schema)
 		//fmt.Println("tmpfieldValueschema", tmpSchema.FieldsByName[v].Schema)
-		tmpField = tmpSchema.FieldsByName[v]
+		tmpField, ok = tmpSchema.FieldsByName[v]
+		if !ok {
+			err = fmt.Errorf("not found field: %s", v)
+			return
+		}
 		//fmt.Println("tmpfieldvalue", tmpField)
 		//spew.Dump(tmpField)
 		//if !ok {
 		//	err = fmt.Errorf("not found field: %s", v)
 		//	return
 		//}]
-		tmpSchema = tmpSchema.Relationships.Relations[v].FieldSchema
+		tmpSchema = relation.FieldSchema
 	}
 
 	fn, err = param.toScope(tmpField.DBName)
@@ -179,7 +159,6 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 
 	for i := len(relationTables) - 1; i >= 0; i-- {
 		r := relationTables[i]
-		fmt.Println(i, r)
 
 		tmpFn := fn
 

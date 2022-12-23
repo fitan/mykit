@@ -1,7 +1,7 @@
 package myhttp
 
 import (
-	"github.com/go-resty/resty/v2"
+	"github.com/imroc/req/v3"
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"net"
 	"net/http"
@@ -29,7 +29,13 @@ func WithTrace() ClientOption {
 		MaxIdleConnsPerHost:   runtime.GOMAXPROCS(0) + 1,
 	}
 	return func(client *Client) {
-		client.SetTransport(otelhttp.NewTransport(t))
+		transport := req.C().GetTransport()
+		transport.WrapRoundTripFunc(
+			func(rt http.RoundTripper) req.HttpRoundTripFunc {
+				return func(req *http.Request) (resp *http.Response, err error) {
+					return otelhttp.NewTransport(t).RoundTrip(req)
+				}
+			})
 	}
 }
 
@@ -47,6 +53,6 @@ func RequestAfter(after ...AfterFunc) RequestOption {
 	}
 }
 
-type BeforeFunc func(*resty.Request)
+type BeforeFunc func(*req.Request)
 
-type AfterFunc func(*resty.Response, error)
+type AfterFunc func(*req.Response, error)

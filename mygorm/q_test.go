@@ -57,7 +57,7 @@ func (b *Brand) TableName() string {
 	return "assets_brand"
 }
 
-func TestQ(t *testing.T) {
+func TestScopes(t *testing.T) {
 	//dsn := "root:123456@tcp(172.29.107.199:3306)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
 	dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/spider_dev?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
@@ -73,10 +73,11 @@ func TestQ(t *testing.T) {
 	v.Add("q", "Brand.UUID?=83c63f28970d433597f6caf2696ceab4,83c63f28970d433597f6caf2696ceab5")
 	v.Add("q", "Brand.UUID!?=83c63f28970d433597f6caf2696ceab4,83c63f28970d433597f6caf2696ceab5")
 	v.Add("q", "Brand.CreatedAt<>2021-01-01,2021-01-02")
-	v.Add("sort", "ID,desc")
-	v.Add("sort", "UUID,desc")
-	v.Add("page", "2")
-	v.Add("pageSize", "10")
+	v.Add("_sort", "ID,desc")
+	v.Add("_sort", "UUID,desc")
+	v.Add("_page", "2")
+	v.Add("_pageSize", "10")
+	v.Add("_select", "ID,UUID")
 	//v.Add("q", "Brand.ProductModel=PowerEdge R730xd (SKU=NotProvided;ModelName=PowerEdge R730xd)")
 	v.Encode()
 
@@ -105,13 +106,14 @@ func TestQ(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				gotFns, err := Q(tt.args.r, tt.args.t)
+				r2, err := Scopes(tt.args.r, tt.args.t)
 				if err != nil {
 					panic(err)
 				}
 				tmpDB := db.Session(&gorm.Session{DryRun: true})
 				data := make([]PhysicalMachine, 0)
-				fmt.Println(tmpDB.Scopes(gotFns...).Find(&data).Statement.SQL.String())
+				tmpDB = SetScopes(r2.Context(), tmpDB)
+				fmt.Println(tmpDB.Find(&data).Statement.SQL.String())
 				//err = tmpDB.Find(&data).Error
 				//if err != nil {
 				//	panic(err)

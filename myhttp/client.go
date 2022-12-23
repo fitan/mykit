@@ -4,17 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/go-resty/resty/v2"
+	"github.com/imroc/req/v3"
 	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 	"net/http"
 )
 
 type Client struct {
-	*resty.Client
+	*req.Client
 }
 
-func NewClient(client *resty.Client, options ...ClientOption) *Client {
+func NewClient(client *req.Client, options ...ClientOption) *Client {
 	c := &Client{Client: client}
 	for _, option := range options {
 		option(c)
@@ -23,20 +23,21 @@ func NewClient(client *resty.Client, options ...ClientOption) *Client {
 }
 
 type contextKey int
+
 const HttpRequestName contextKey = 1
 
 type Request struct {
-	*resty.Request
+	*req.Request
 	before []BeforeFunc
 	after  []AfterFunc
 }
 
-func (r *Request) WithName(name string)  {
+func (r *Request) WithName(name string) {
 	ctx := context.WithValue(r.Context(), HttpRequestName, name)
 	r.SetContext(ctx)
 }
 
-func (r *Request) DecodeEx(method, url string, decode Decode, options ...RequestOption) (*resty.Response, error) {
+func (r *Request) DecodeEx(method, url string, decode Decode, options ...RequestOption) (*req.Response, error) {
 	for _, option := range options {
 		option(r)
 	}
@@ -44,7 +45,7 @@ func (r *Request) DecodeEx(method, url string, decode Decode, options ...Request
 	for _, before := range r.before {
 		before(r.Request)
 	}
-	resp, err := r.Request.Execute(method, url)
+	resp, err := r.Request.Send(method, url)
 
 	for _, after := range r.after {
 		after(resp, err)
@@ -61,12 +62,16 @@ func (c *Client) R() *Request {
 	}
 }
 
-type Decode func(res *resty.Response, err error) (*resty.Response, error)
+type Decode func(res *req.Response, err error) (*req.Response, error)
 
 func DecodeJsonData(i interface{}) Decode {
-	return func(resp *resty.Response, err error) (*resty.Response, error) {
-		if resp.StatusCode() != http.StatusOK {
-			return resp, fmt.Errorf("unexpected status code %d", resp.StatusCode())
+	return func(resp *req.Response, err error) (*req.Response, error) {
+		if resp.GetStatusCode() != http.StatusOK {
+			return resp, fmt.Errorf("unexpected status code %d", resp.GetStatusCode())
+		}
+
+		if i == nil {
+			return resp, nil
 		}
 
 		if _, ok := i.(*string); ok {
@@ -74,9 +79,10 @@ func DecodeJsonData(i interface{}) Decode {
 			return resp, nil
 		}
 
-		result := gjson.GetBytes(resp.Body(), "code")
+		body := resp.Bytes()
+		result := gjson.GetBytes(body, "code")
 		if !result.Exists() {
-			err := json.Unmarshal(resp.Body(), i)
+			err := json.Unmarshal(body, i)
 			if err != nil {
 				err = errors.Wrap(err, "unmarshal response")
 				return resp, err
@@ -89,8 +95,8 @@ func DecodeJsonData(i interface{}) Decode {
 			return resp, fmt.Errorf("response err: %s", s)
 		}
 
-		dataResult := gjson.GetBytes(resp.Body(), "data")
-		err = json.Unmarshal(resp.Body()[dataResult.Index:result.Index+len(result.Raw)], i)
+		dataResult := gjson.GetBytes(body, "data")
+		err = json.Unmarshal(body[dataResult.Index:result.Index+len(result.Raw)], i)
 		if err != nil {
 			err = errors.Wrap(err, "unmarshal response data")
 			return resp, err
