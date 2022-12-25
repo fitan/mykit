@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/fitan/mykit/myctx"
+	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
@@ -13,53 +14,116 @@ import (
 	"sync"
 )
 
-func SetScopes(ctx context.Context, db *gorm.DB) *gorm.DB {
-	scopes, ok := ctx.Value(myctx.CtxGormScopesKey).([]func(db *gorm.DB) *gorm.DB)
-	if !ok {
-		return db
-	}
-	for _, fn := range scopes {
-		db = fn(db)
-	}
-	return db
+type CtxGormScopesValue struct {
+	QScopes     []func(db *gorm.DB) *gorm.DB
+	OtherScopes []func(db *gorm.DB) *gorm.DB
+	Err         error
 }
 
-func Scopes(r *http.Request, i interface{}) (r2 *http.Request, err error) {
+func KitScopesBefore(i interface{}) (option kithttp.ServerOption, err error) {
+
 	tSchema, err := schema.Parse(i, &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
+		err = errors.Wrap(err, "schema.Parse")
 		return
 	}
+	option = kithttp.ServerBefore(
+		func(ctx context.Context, r *http.Request) context.Context {
+			return SetScopesToCtx(ctx, r, *tSchema)
+		})
+	return
+}
 
-	fns, err := QScope(r, *tSchema)
+func SetScopesToCtx(ctx context.Context, r *http.Request, tSchema schema.Schema) context.Context {
+	if ctx == nil {
+		ctx = r.Context()
+	}
+	value := CtxGormScopesValue{}
+	value.QScopes, value.Err = QScopes(r, tSchema)
+
+	otherScopes := make([]func(db *gorm.DB) *gorm.DB, 0)
+	sortFn, err := SortScope(r, tSchema)
+	if err != nil {
+		value.Err = errors.Wrap(value.Err, err.Error())
+	}
+	otherScopes = append(otherScopes, sortFn)
+
+	pageFn, err := PagingScope(r)
+	if err != nil {
+		value.Err = errors.Wrap(value.Err, err.Error())
+	}
+	otherScopes = append(otherScopes, pageFn)
+
+	preloadFn, err := PreloadScope(r, tSchema)
+	if err != nil {
+		value.Err = errors.Wrap(value.Err, err.Error())
+	}
+	otherScopes = append(otherScopes, preloadFn)
+
+	selectFn, err := SelectScope(r, tSchema)
+	if err != nil {
+		value.Err = errors.Wrap(value.Err, err.Error())
+	}
+	value.OtherScopes = append(otherScopes, selectFn)
+	return context.WithValue(ctx, myctx.CtxGormScopesKey, value)
+}
+
+func SetQScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
+	value, ok := ctx.Value(myctx.CtxGormScopesKey).(CtxGormScopesValue)
+	if !ok {
+		return db, nil
+	}
+	if value.Err != nil {
+		return db, value.Err
+	}
+
+	for _, fn := range value.QScopes {
+		db = fn(db)
+	}
+	return db, nil
+}
+
+func SetScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
+	value, ok := ctx.Value(myctx.CtxGormScopesKey).(CtxGormScopesValue)
+	if !ok {
+		return db, nil
+	}
+	if value.Err != nil {
+		return db, value.Err
+	}
+
+	for _, fn := range value.QScopes {
+		db = fn(db)
+	}
+
+	for _, fn := range value.OtherScopes {
+		db = fn(db)
+	}
+	return db, nil
+}
+
+func SetOtherScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
+	value, ok := ctx.Value(myctx.CtxGormScopesKey).(CtxGormScopesValue)
+	if !ok {
+		return db, nil
+	}
+	if value.Err != nil {
+		return db, value.Err
+	}
+
+	for _, fn := range value.OtherScopes {
+		db = fn(db)
+	}
+	return db, nil
+}
+
+func QScopes(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
+	fns, err = QScope(r, tSchema)
 	if err != nil {
 		err = errors.Wrap(err, "QScope")
 		return
 	}
-
-	sortFn, err := SortScope(r, *tSchema)
-	if err != nil {
-		err = errors.Wrap(err, "SortScope")
-		return
-	}
-	fns = append(fns, sortFn)
-
-	pageFn, err := PagingScope(r)
-	if err != nil {
-		err = errors.Wrap(err, "PagingScope")
-		return
-	}
-	fns = append(fns, pageFn)
-
-	selectFn, err := SelectScope(r, *tSchema)
-	if err != nil {
-		err = errors.Wrap(err, "SelectScope")
-		return
-	}
-
-	fns = append(fns, selectFn)
-
-	ctx := context.WithValue(r.Context(), myctx.CtxGormScopesKey, fns)
-	return r.WithContext(ctx), nil
+	return
 }
 
 func PagingScope(r *http.Request) (fn func(db *gorm.DB) *gorm.DB, err error) {
@@ -113,6 +177,29 @@ func SelectScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *
 	}, nil
 }
 
+func PreloadScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, err error) {
+	o := r.URL.Query().Get("_preload")
+	if o == "" {
+		return func(db *gorm.DB) *gorm.DB {
+			return db
+		}, nil
+	}
+	tablesList := strings.Split(o, ",")
+	for _, tables := range tablesList {
+		err = depthTable(tSchema, tables)
+		if err != nil {
+			return
+		}
+	}
+
+	return func(db *gorm.DB) *gorm.DB {
+		for _, v := range tablesList {
+			db = db.Preload(v)
+		}
+		return db
+	}, nil
+}
+
 // 默认创建时间倒序
 func SortScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, err error) {
 	o, ok := r.URL.Query()["_sort"]
@@ -151,4 +238,17 @@ func SortScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *go
 		}
 		return db
 	}, nil
+}
+
+func depthTable(tSchema schema.Schema, tables string) error {
+	ts := strings.Split(tables, ".")
+	tmpSchema := tSchema
+	for _, t := range ts {
+		relation, ok := tmpSchema.Relationships.Relations[t]
+		if !ok {
+			return errors.Errorf("未知的关联: %s/%s", tables, t)
+		}
+		tmpSchema = *(relation.FieldSchema)
+	}
+	return nil
 }

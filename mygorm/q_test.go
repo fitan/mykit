@@ -58,8 +58,8 @@ func (b *Brand) TableName() string {
 }
 
 func TestScopes(t *testing.T) {
-	//dsn := "root:123456@tcp(172.29.107.199:3306)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
-	dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/spider_dev?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:123456@tcp(172.29.107.199:3306)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
+	//dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/spider_dev?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic(err)
@@ -106,13 +106,16 @@ func TestScopes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				r2, err := Scopes(tt.args.r, tt.args.t)
+				ctx, err := SetScopesToCtx(tt.args.r, tt.args.t)
 				if err != nil {
 					panic(err)
 				}
 				tmpDB := db.Session(&gorm.Session{DryRun: true})
 				data := make([]PhysicalMachine, 0)
-				tmpDB = SetScopes(r2.Context(), tmpDB)
+				tmpDB, err = SetScopes(ctx, tmpDB)
+				if err != nil {
+					panic(err)
+				}
 				fmt.Println(tmpDB.Find(&data).Statement.SQL.String())
 				//err = tmpDB.Find(&data).Error
 				//if err != nil {

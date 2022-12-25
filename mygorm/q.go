@@ -27,7 +27,7 @@ var ops = map[string]string{
 }
 
 func QScope(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
-	qList, ok := r.URL.Query()["q"]
+	qList, ok := r.URL.Query()["_q"]
 	if !ok {
 		return
 	}
