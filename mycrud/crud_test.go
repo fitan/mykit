@@ -2,16 +2,24 @@ package mycrud
 
 import (
 	"github.com/fitan/mykit/mycrud/ormdata"
+	"github.com/fitan/mykit/myrouter"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
 	"gorm.io/gorm"
-	"net/http"
+	"log"
 	"testing"
 )
 
 func TestNewCRUD(t *testing.T) {
-	db := ormdata.New().Debug()
 	m := mux.NewRouter()
+	r := myrouter.New(m)
+	db := ormdata.New().Debug()
+	//user := ormdata.User{}
+	//err := db.Preload("Posts").Preload("Albums").Preload("Todos").Where("id = ?", 1).Find(&user).Error
+	//if err != nil {
+	//	panic(err)
+	//}
+	//json.NewEncoder(os.Stdout).Encode(user)
 	type args struct {
 		m      *mux.Router
 		db     *gorm.DB
@@ -39,51 +47,52 @@ func TestNewCRUD(t *testing.T) {
 				crud := NewCRUD(tt.args.m, tt.args.db, tt.args.encode)
 				crud.RegisterTable(
 					func() interface{} {
-						return ormdata.User{}
+						return &ormdata.User{}
 					}, func() interface{} {
-						return make([]ormdata.User, 0)
+						return &[]ormdata.User{}
 					})
 				crud.RegisterTable(
 					func() interface{} {
-						return ormdata.Todo{}
+						return &ormdata.Todo{}
 					}, func() interface{} {
-						return make([]ormdata.Todo, 0)
+						return &[]ormdata.Todo{}
 					})
 				crud.RegisterTable(
 					func() interface{} {
-						return ormdata.Post{}
+						return &ormdata.Post{}
 					},
 					func() interface{} {
-						return make([]ormdata.Post, 0)
-					},
-				)
-				crud.RegisterTable(
-					func() interface{} {
-						return ormdata.Photo{}
-					},
-					func() interface{} {
-						return make([]ormdata.Photo, 0)
+						return &[]ormdata.Post{}
 					},
 				)
 				crud.RegisterTable(
 					func() interface{} {
-						return ormdata.Comment{}
+						return &ormdata.Photo{}
 					},
 					func() interface{} {
-						return make([]ormdata.Comment, 0)
+						return &[]ormdata.Photo{}
 					},
 				)
 				crud.RegisterTable(
 					func() interface{} {
-						return ormdata.Album{}
+						return &ormdata.Comment{}
 					},
 					func() interface{} {
-						return make([]ormdata.Album, 0)
+						return &[]ormdata.Comment{}
+					},
+				)
+				crud.RegisterTable(
+					func() interface{} {
+						return &ormdata.Album{}
+					},
+					func() interface{} {
+						return &[]ormdata.Album{}
 					},
 				)
 
 				crud.run()
-				http.ListenAndServe(":8080", crud.m)
+				log.Println("crud run")
+				r.Run(":8080")
 			},
 		)
 	}

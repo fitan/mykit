@@ -6,18 +6,21 @@ import (
 )
 
 func New() *gorm.DB {
-	dsn := "root:123456@tcp(172.29.107.199:3306)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})
+	//db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{
+	//	DisableForeignKeyConstraintWhenMigrating: true,
+	//})
 	if err != nil {
 		panic(err)
 	}
 
-	err = db.AutoMigrate(&User{}, &Todo{}, &Post{}, &Photo{}, &Comment{}, &Album{})
-	if err != nil {
-		panic(err)
-	}
+	//err = db.AutoMigrate(&User{}, &Todo{}, &Post{}, &Photo{}, &Comment{}, &Album{})
+	//if err != nil {
+	//	panic(err)
+	//}
 
 	//albums := make([]Album,0)
 	//comments := make([]Comment,0)
@@ -25,7 +28,7 @@ func New() *gorm.DB {
 	//posts := make([]Post,0)
 	//todos := make([]Todo,0)
 	//users := make([]User,0)
-	//
+
 	//albumsB, err := ioutil.ReadFile("./ormdata/albums.json")
 	//if err != nil {
 	//	panic(err)

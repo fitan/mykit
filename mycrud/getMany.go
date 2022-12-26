@@ -38,7 +38,7 @@ func (c *CRUD) getManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetManyRequest)
 		res, err := c.getMany(ctx, req.TableName, nil)
-		return res, err
+		return c.endpointWrap(res, err)
 	}
 }
 
@@ -48,26 +48,27 @@ func (c *CRUD) getMany(ctx context.Context, tableName string, scopes []func(db *
 		return
 	}
 
-	list := msg.manyObjFn()
 	var total int64
 	totalDB := c.db.Db(ctx)
 	totalDB, err = mygorm.SetQScopes(ctx, totalDB)
 	if err != nil {
 		return
 	}
-	err = totalDB.Table(tableName).Scopes(scopes...).Count(&total).Error
+	err = totalDB.Model(msg.oneObjFn()).Scopes(scopes...).Count(&total).Error
 	if err != nil {
 		err = errors.Wrap(err, "db.Table(tableName).Count(&total).Error")
 		return
 	}
-	db := c.db.Db(ctx).Table(tableName).Scopes(scopes...)
+	db := c.db.Db(ctx).Model(msg.oneObjFn()).Scopes(scopes...)
 	db, err = mygorm.SetScopes(ctx, db)
 	if err != nil {
 		return
 	}
-	err = db.Find(&list).Error
+	//list := msg.oneObjFn()
+	list := msg.manyObjFn()
+	err = db.Find(list).Error
 	if err != nil {
-		err = errors.Wrap(err, "db.Find(&list).Error")
+		err = errors.Wrap(err, "db.Find(list).Error")
 		return
 	}
 

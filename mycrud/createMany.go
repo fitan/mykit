@@ -30,13 +30,13 @@ func (c *CRUD) createManyDecode() kithttp.DecodeRequestFunc {
 		}
 
 		body := msg.manyObjFn()
-		err = json.NewDecoder(r.Body).Decode(&body)
+		err = json.NewDecoder(r.Body).Decode(body)
 		if err != nil {
 			return
 		}
 
 		req.Body = body
-		return
+		return req, nil
 	}
 }
 
@@ -44,7 +44,7 @@ func (c *CRUD) createManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(createManyRequest)
 		err = c.createMany(ctx, req.TableName, req.Body)
-		return
+		return c.endpointWrap(nil, err)
 	}
 }
 
@@ -57,9 +57,9 @@ func (c *CRUD) createMany(ctx context.Context, tableName string, data interface{
 	db, commit := c.db.Tx(ctx)
 	defer commit(err)
 
-	err = db.Table(tableName).Create(&data).Error
+	err = db.Table(tableName).CreateInBatches(data, 20).Error
 	if err != nil {
-		err = errors.Wrap(err, "db.Table(tableName).Create(&data).Error")
+		err = errors.Wrap(err, "db.Table(tableName).Create(data).Error")
 		return
 	}
 	return

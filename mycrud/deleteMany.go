@@ -33,7 +33,7 @@ func (c *CRUD) deleteManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(deleteManyRequest)
 		err = c.deleteMany(ctx, req.TableName, req.Ids)
-		return nil, err
+		return c.endpointWrap(nil, err)
 	}
 }
 

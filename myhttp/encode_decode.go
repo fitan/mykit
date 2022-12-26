@@ -1,6 +1,7 @@
 package myhttp
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 )
@@ -9,15 +10,39 @@ import (
 type Response struct {
 	Code    int         `json:"code"`
 	Data    interface{} `json:"data"`
-	Error   error       `json:"message"`
+	Error   string      `json:"error"`
 	TraceID string      `json:"trace_id"`
 }
 
 func WrapResponse(data interface{}, err error) (interface{}, error) {
-	return Response{
-		Data:  data,
-		Error: err,
-	}, err
+	res := Response{Data: data, Code: 200}
+
+	if err != nil {
+		res.Error = err.Error()
+		res.Code = 500
+	}
+
+	return res, nil
+}
+
+func EncodeJSONResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
+	res, ok := response.(Response)
+	if !ok {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte("response type error"))
+		return nil
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusOK)
+	b, err := json.Marshal(res)
+	if err != nil {
+		w.WriteHeader(http.StatusForbidden)
+		_, _ = w.Write([]byte(err.Error()))
+		return nil
+	}
+	_, _ = w.Write(b)
+	return nil
 }
 
 func ResponseJsonEncode(w http.ResponseWriter, v interface{}) {

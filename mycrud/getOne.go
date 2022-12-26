@@ -31,7 +31,7 @@ func (c *CRUD) getOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetOneRequest)
 		res, err := c.getOne(ctx, req.TableName, req.Id)
-		return res, err
+		return c.endpointWrap(res, err)
 	}
 }
 
@@ -43,7 +43,7 @@ func (c *CRUD) getOne(ctx context.Context, tableName, id string) (data interface
 
 	db := c.db.Db(ctx)
 
-	data = msg.oneObjFn()
-	err = db.Table(tableName).First(&data).Error
-	return
+	obj := msg.oneObjFn()
+	err = db.Model(msg.oneObjFn()).Where("id = ?", id).First(obj).Error
+	return obj, err
 }

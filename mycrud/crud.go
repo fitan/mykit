@@ -28,11 +28,12 @@ const (
 )
 
 type CRUD struct {
-	tables  map[string]tableMsg
-	m       *mux.Router
-	db      *mygorm.DB
-	enc     kithttp.EncodeResponseFunc
-	options []kithttp.ServerOption
+	tables       map[string]tableMsg
+	m            *mux.Router
+	db           *mygorm.DB
+	enc          kithttp.EncodeResponseFunc
+	endpointWrap func(response interface{}, err error) (interface{}, error)
+	options      []kithttp.ServerOption
 }
 
 type methodMsg struct {
@@ -57,11 +58,11 @@ type methodMsg struct {
 }
 
 func NewCRUD(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc) *CRUD {
-	enc := kithttp.EncodeJSONResponse
+	enc := myhttp.EncodeJSONResponse
 	if encode != nil {
 		enc = encode
 	}
-	return &CRUD{m: m, tables: map[string]tableMsg{}, db: mygorm.New(db), enc: enc}
+	return &CRUD{m: m, tables: map[string]tableMsg{}, db: mygorm.New(db), enc: enc, endpointWrap: myhttp.WrapResponse}
 }
 
 func (c *CRUD) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}) error {

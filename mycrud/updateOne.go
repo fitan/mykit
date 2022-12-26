@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
+	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"net/http"
 )
@@ -22,8 +23,9 @@ type updateOneRequest struct {
 func (c *CRUD) updateOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := updateOneRequest{}
-		req.TableName = r.FormValue("tableName")
-		req.Id = r.FormValue("id")
+		v := mux.Vars(r)
+		req.TableName = v["tableName"]
+		req.Id = v["id"]
 
 		msg, err := c.tableMsg(req.TableName)
 		if err != nil {
@@ -32,9 +34,9 @@ func (c *CRUD) updateOneDecode() kithttp.DecodeRequestFunc {
 
 		body := msg.oneObjFn()
 
-		err = json.NewDecoder(r.Body).Decode(&body)
+		err = json.NewDecoder(r.Body).Decode(body)
 		if err != nil {
-			err = errors.Wrap(err, "json.NewDecoder(r.Body).Decode(&body)")
+			err = errors.Wrap(err, "json.NewDecoder(r.Body).Decode(body)")
 			return
 		}
 
@@ -48,12 +50,12 @@ func (c *CRUD) updateOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(updateOneRequest)
 		err = c.updateOne(ctx, req.TableName, req.Id, req.Body)
-		return nil, err
+		return c.endpointWrap(nil, err)
 	}
 }
 
 func (c *CRUD) updateOne(ctx context.Context, tableName string, id string, data interface{}) (err error) {
-	_, err = c.tableMsg(tableName)
+	msg, err := c.tableMsg(tableName)
 	if err != nil {
 		return
 	}
@@ -61,9 +63,9 @@ func (c *CRUD) updateOne(ctx context.Context, tableName string, id string, data 
 	db, commit := c.db.Tx(ctx)
 	defer commit(err)
 
-	err = db.Table(tableName).Where("id = ?", id).Save(&data).Error
+	err = db.Model(msg.oneObjFn()).Select("*").Where("id = ?", id).Updates(data).Error
 	if err != nil {
-		err = errors.Wrap(err, "db.Table(tableName).Save(&data).Error")
+		err = errors.Wrap(err, "db.Updates()")
 		return
 	}
 	return

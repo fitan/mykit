@@ -31,7 +31,7 @@ func (c *CRUD) deleteOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(deleteOneRequest)
 		err = c.deleteOne(ctx, req.TableName, req.Id)
-		return nil, err
+		return c.endpointWrap(nil, err)
 	}
 }
 
@@ -44,6 +44,6 @@ func (c *CRUD) deleteOne(ctx context.Context, tableName, id string) (err error) 
 	db, commit := c.db.Tx(ctx)
 	defer commit(err)
 
-	err = db.Table(tableName).Where("id = ?", id).Delete(&(msg.oneObjFn)).Error
+	err = db.Model(msg.oneObjFn()).Where("id = ?", id).Delete(msg.oneObjFn()).Error
 	return
 }

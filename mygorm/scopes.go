@@ -92,14 +92,11 @@ func SetScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
 		return db, value.Err
 	}
 
-	for _, fn := range value.QScopes {
-		db = fn(db)
+	for _, v := range value.QScopes {
+		db = v(db)
 	}
+	return db.Scopes(value.OtherScopes...), nil
 
-	for _, fn := range value.OtherScopes {
-		db = fn(db)
-	}
-	return db, nil
 }
 
 func SetOtherScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
