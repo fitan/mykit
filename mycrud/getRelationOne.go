@@ -79,7 +79,7 @@ func (c *CRUD) getRelationOne(ctx context.Context, tableName, id, relationTableN
 	data = relationTableNameMsg.oneObjFn()
 
 	db := c.db.Db(ctx)
-	db.Model(relationTableNameMsg.oneObjFn()).Where(relationForeignKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).First(data)
+	db.Model(relationTableNameMsg.oneObjFn()).Where(relationPrimaryKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).First(data)
 
 	return data, nil
 }

@@ -83,7 +83,7 @@ func (c *CRUD) getRelationMany(ctx context.Context, tableName, id, relationTable
 	if err != nil {
 		return
 	}
-	err = totalDB.Model(relationTableNameMsg.oneObjFn()).Where(relationForeignKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
+	err = totalDB.Model(relationTableNameMsg.oneObjFn()).Where(relationPrimaryKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
 	if err != nil {
 		err = errors.Wrap(err, "db.Count")
 		return
@@ -97,7 +97,7 @@ func (c *CRUD) getRelationMany(ctx context.Context, tableName, id, relationTable
 
 	list := relationTableNameMsg.manyObjFn()
 
-	db.Where(relationForeignKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Find(list)
+	db.Where(relationPrimaryKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).Find(list)
 
 	data.List = list
 	data.Total = total

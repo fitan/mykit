@@ -24,6 +24,7 @@ const (
 	CreateOneMethodName          = "CreateOne"
 	CreateManyMethodName         = "CreateMany"
 	CreateRelationManyMethodName = "CreateRelationMany"
+	CreateRelationOneMethodName  = "CreateRelationOne"
 	UpdateOneMethodName          = "UpdateOne"
 	UpdateManyMethodName         = "UpdateMany"
 	DeleteOneMethodName          = "DeleteOne"
@@ -133,6 +134,7 @@ func (c *CRUD) run() {
 	c.createOneHandler()
 	c.createManyHandler()
 	c.createRelationManyHandler()
+	c.createRelationOneHandler()
 	c.deleteOneHandler()
 	c.deleteManyHandler()
 }
@@ -192,6 +194,6 @@ func (c *CRUD) handler(methodName, httpMethod string, path string, e endpoint.En
 		o = append(o, opts...)
 
 		kithttp.NewServer(e, dec, enc, o...).ServeHTTP(writer, request)
-	}).Methods(httpMethod)
+	}).Methods(httpMethod).Name(methodName)
 
 }
