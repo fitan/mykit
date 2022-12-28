@@ -17,14 +17,17 @@ import (
 )
 
 const (
-	GetOneMethodName     = "GetOne"
-	GetManyMethodName    = "GetMany"
-	CreateOneMethodName  = "CreateOne"
-	CreateManyMethodName = "CreateMany"
-	UpdateOneMethodName  = "UpdateOne"
-	UpdateManyMethodName = "UpdateMany"
-	DeleteOneMethodName  = "DeleteOne"
-	DeleteManyMethodName = "DeleteMany"
+	GetOneMethodName             = "GetOne"
+	GetManyMethodName            = "GetMany"
+	GetRelationOneMethodName     = "GetRelationOne"
+	GetRelationManyMethodName    = "GetRelationMany"
+	CreateOneMethodName          = "CreateOne"
+	CreateManyMethodName         = "CreateMany"
+	CreateRelationManyMethodName = "CreateRelationMany"
+	UpdateOneMethodName          = "UpdateOne"
+	UpdateManyMethodName         = "UpdateMany"
+	DeleteOneMethodName          = "DeleteOne"
+	DeleteManyMethodName         = "DeleteMany"
 )
 
 type CRUD struct {
@@ -123,10 +126,13 @@ func (c *CRUD) RegisterMethod(tableName string) *RegisterMethodHelper {
 func (c *CRUD) run() {
 	c.getOneHandler()
 	c.getManyHandler()
+	c.getRelationOneHandler()
+	c.getRelationManyHandler()
 	c.updateOneHandler()
 	c.updateManyHandler()
 	c.createOneHandler()
 	c.createManyHandler()
+	c.createRelationManyHandler()
 	c.deleteOneHandler()
 	c.deleteManyHandler()
 }
@@ -141,6 +147,7 @@ func (c *CRUD) tableMsg(tableName string) (tableMsg, error) {
 
 func (c *CRUD) KitGormScopesBefore() kithttp.ServerOption {
 	return kithttp.ServerBefore(func(ctx context.Context, request *http.Request) context.Context {
+
 		tableName, ok := mux.Vars(request)["tableName"]
 		if !ok {
 			return ctx
@@ -151,6 +158,17 @@ func (c *CRUD) KitGormScopesBefore() kithttp.ServerOption {
 			return context.WithValue(ctx, myctx.CtxGormScopesKey, mygorm.CtxGormScopesValue{
 				Err: err,
 			})
+		}
+
+		relationTableName, ok := mux.Vars(request)["relationTableName"]
+		if ok {
+			var err error
+			msg, err = c.tableMsg(relationTableName)
+			if err != nil {
+				return context.WithValue(ctx, myctx.CtxGormScopesKey, mygorm.CtxGormScopesValue{
+					Err: err,
+				})
+			}
 		}
 
 		return mygorm.SetScopesToCtx(ctx, request, msg.schema)

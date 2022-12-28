@@ -48,8 +48,10 @@ require (
 )
 
 require (
+	github.com/arl/statsviz v0.5.1 // indirect
 	github.com/cheekybits/genny v1.0.0 // indirect
 	github.com/go-task/slim-sprig v0.0.0-20210107165309-348f09dbbbc0 // indirect
+	github.com/gorilla/websocket v1.4.2 // indirect
 	github.com/lucas-clemente/quic-go v0.28.1 // indirect
 	github.com/marten-seemann/qpack v0.2.1 // indirect
 	github.com/marten-seemann/qtls-go1-16 v0.1.5 // indirect

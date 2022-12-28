@@ -56,7 +56,7 @@ func (c *CRUD) getMany(ctx context.Context, tableName string, scopes []func(db *
 	}
 	err = totalDB.Model(msg.oneObjFn()).Scopes(scopes...).Count(&total).Error
 	if err != nil {
-		err = errors.Wrap(err, "db.Table(tableName).Count(&total).Error")
+		err = errors.Wrap(err, "db.Count")
 		return
 	}
 	db := c.db.Db(ctx).Model(msg.oneObjFn()).Scopes(scopes...)
@@ -68,7 +68,7 @@ func (c *CRUD) getMany(ctx context.Context, tableName string, scopes []func(db *
 	list := msg.manyObjFn()
 	err = db.Find(list).Error
 	if err != nil {
-		err = errors.Wrap(err, "db.Find(list).Error")
+		err = errors.Wrap(err, "db.Find")
 		return
 	}
 

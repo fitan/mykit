@@ -2,6 +2,7 @@ package myrouter
 
 import (
 	"context"
+	"github.com/arl/statsviz"
 	"github.com/fitan/mykit/myhttp"
 	"github.com/fitan/mykit/myhttpmid"
 	"github.com/google/gops/agent"
@@ -24,7 +25,8 @@ import (
 
 type Router struct {
 	*mux.Router
-	log *zap.SugaredLogger
+	log    *zap.SugaredLogger
+	debugM *mux.Router
 }
 
 func (r *Router) gops() {
@@ -34,11 +36,11 @@ func (r *Router) gops() {
 	}
 }
 
-func (r *Router) walk() {
+func (r *Router) walk(m *mux.Router) {
 	v := make([][]string, 0, 0)
 	v = append(v, []string{"id", "name", "path", "method"})
 	id := 0
-	r.Router.Walk(
+	m.Walk(
 		func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
 			path, _ := route.GetPathTemplate()
 			method, _ := route.GetMethods()
@@ -56,11 +58,16 @@ func (r *Router) health() {
 	}).Methods(http.MethodGet)
 }
 
-func (r *Router) metric() {
+func (r *Router) statsviz(m *mux.Router) {
+	m.Methods("GET").Path("/debug/statsviz/ws").Name("GET /debug/statsviz/ws").HandlerFunc(statsviz.Ws)
+	m.Methods("GET").Path("/debug/statsviz/").Name("GET /debug/statsviz/").Handler(statsviz.Index)
+}
+
+func (r *Router) metric(m *mux.Router) {
 	mdlw := metricsMid.New(metricsMid.Config{
 		Recorder: metrics.NewRecorder(metrics.Config{}),
 	})
-	r.Use(
+	r.Router.Use(
 		func(next http.Handler) http.Handler {
 			fn := func(w http.ResponseWriter, r *http.Request) {
 				path, _ := mux.CurrentRoute(r).GetPathTemplate()
@@ -69,20 +76,28 @@ func (r *Router) metric() {
 			return http.HandlerFunc(fn)
 		})
 
-	go func() {
-		r.log.Infof("metrics listening at: %s", ":8090")
-		if err := http.ListenAndServe(":8090", promhttp.Handler()); err != nil {
-			r.log.Panicf("error while serving metrics: %s", err)
-		}
-	}()
+	m.Methods(http.MethodGet).Name("prom metrics").Path("/metrics").Handler(promhttp.Handler())
+}
+
+func (r *Router) debugRouterRun() {
+	r.metric(r.debugM)
+	r.statsviz(r.debugM)
+	r.switchDebug(r.debugM)
+	r.walk(r.debugM)
+	r.log.Infof("debug listening at: %s", ":8090")
+	if err := http.ListenAndServe(":8090", r.debugM); err != nil {
+		r.log.Panicf("error while serving metrics: %s", err)
+	}
 }
 
 func (r *Router) Run(addr string) {
+	go r.debugRouterRun()
+
 	if addr == "" {
 		addr = "localhost:8080"
 	}
 
-	r.walk()
+	r.walk(r.Router)
 
 	server := &http.Server{
 		Addr:    addr,
@@ -126,27 +141,31 @@ func (r *Router) Run(addr string) {
 	r.log.Infow("server done...")
 }
 
-func (r *Router) switchDebug() {
+func (r *Router) switchDebug(m *mux.Router) {
 	debug := myhttpmid.NewDebugSwitch()
 	r.Use(debug.Middleware)
-	debug.Handlers("/debug", r.Router)
+	debug.Handlers(m)
 }
 
-func (r *Router) Setlog(log *zap.SugaredLogger) {
+func (r *Router) SetLog(log *zap.SugaredLogger) {
 	r.log = log
+}
+
+// RecoveryHandler log
+func (r *Router) Println(args ...interface{}) {
+	r.log.Errorw("recovery", args...)
 }
 
 func New(r *mux.Router) *Router {
 	zaplog, _ := zap.NewProduction()
 	router := &Router{
 		Router: r,
-		log:    zaplog.Sugar(),
+		log:    zaplog.Sugar().WithOptions(zap.AddCallerSkip(1)),
+		debugM: mux.NewRouter(),
 	}
 
-	r.Use(handlers.RecoveryHandler())
+	r.Use(handlers.RecoveryHandler(handlers.PrintRecoveryStack(true), handlers.RecoveryLogger(router)))
 	router.health()
-	router.metric()
-	router.switchDebug()
 	router.gops()
 	return router
 }

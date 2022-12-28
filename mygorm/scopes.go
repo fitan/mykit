@@ -175,7 +175,7 @@ func SelectScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *
 }
 
 func PreloadScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, err error) {
-	o := r.URL.Query().Get("_preload")
+	o := r.URL.Query().Get("_include")
 	if o == "" {
 		return func(db *gorm.DB) *gorm.DB {
 			return db
@@ -209,17 +209,16 @@ func SortScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *go
 	sortList := make([]string, 0)
 
 	for _, v := range o {
-		l := strings.SplitN(v, ",", 2)
-		if len(l) != 2 {
-			err = fmt.Errorf("sort参数错误: %s", v)
-			return
+		var field string
+		var order string
+		if strings.HasPrefix(v, "-") {
+			field = strings.TrimPrefix(v, "-")
+			order = "DESC"
+		} else {
+			field = v
+			order = "ASC"
 		}
-		field := l[0]
-		order := l[1]
-		if order != "asc" && order != "desc" {
-			err = fmt.Errorf("sort参数错误: %s", v)
-			return
-		}
+
 		f, ok := tSchema.FieldsByName[field]
 		if !ok {
 			err = fmt.Errorf("未知的可排序字段: %s", field)

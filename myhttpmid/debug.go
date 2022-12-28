@@ -55,10 +55,8 @@ func (d *debugSwitch) Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func (d *debugSwitch) Handlers(prefix string, mux *mux.Router) {
-	r := mux.PathPrefix(prefix).Subrouter()
-
-	r.HandleFunc("", func(writer http.ResponseWriter, request *http.Request) {
+func (d *debugSwitch) Handlers(r *mux.Router) {
+	r.HandleFunc("/debug", func(writer http.ResponseWriter, request *http.Request) {
 		req := Request{}
 		err := binding.New(nil).Bind(&req, request, nil)
 		if err != nil {
@@ -75,12 +73,12 @@ func (d *debugSwitch) Handlers(prefix string, mux *mux.Router) {
 		myhttp.ResponseJsonEncode(writer, "ok")
 	}).Methods(http.MethodPut)
 
-	r.HandleFunc("/reset", func(writer http.ResponseWriter, request *http.Request) {
+	r.HandleFunc("/debug/reset", func(writer http.ResponseWriter, request *http.Request) {
 		d.ResetDebug()
 		myhttp.ResponseJsonEncode(writer, "ok")
 	}).Methods(http.MethodPost)
 
-	r.HandleFunc("", func(writer http.ResponseWriter, request *http.Request) {
+	r.HandleFunc("/debug", func(writer http.ResponseWriter, request *http.Request) {
 		myhttp.ResponseJsonEncode(writer, d.List())
 	}).Methods(http.MethodGet)
 }
