@@ -61,12 +61,15 @@ type methodMsg struct {
 	options       []kithttp.ServerOption
 }
 
-func NewCRUD(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc) *CRUD {
+func NewCRUD(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc, opts []kithttp.ServerOption) *CRUD {
 	enc := myhttp.EncodeJSONResponse
 	if encode != nil {
 		enc = encode
 	}
-	return &CRUD{m: m, tables: map[string]tableMsg{}, db: mygorm.New(db), enc: enc, endpointWrap: myhttp.WrapResponse}
+	crud := &CRUD{m: m, tables: map[string]tableMsg{}, db: mygorm.New(db), enc: enc, endpointWrap: myhttp.WrapResponse, options: make([]kithttp.ServerOption, 0)}
+	crud.options = append(crud.options, myhttp.KitErrorEncoder())
+	crud.options = append(crud.options, opts...)
+	return crud
 }
 
 func (c *CRUD) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}) error {
@@ -88,6 +91,7 @@ type tableMsg struct {
 	manyObjFn  func() interface{}
 	schema     schema.Schema
 	encMap     map[string]kithttp.EncodeResponseFunc
+	dto        map[string]func(v interface{}) interface{}
 	optionsMap map[string][]kithttp.ServerOption
 	methodMap  map[string]methodMsg
 }

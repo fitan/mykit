@@ -3,6 +3,7 @@ package myhttp
 import (
 	"context"
 	"encoding/json"
+	kithttp "github.com/go-kit/kit/transport/http"
 	"net/http"
 )
 
@@ -26,12 +27,9 @@ func WrapResponse(data interface{}, err error) (interface{}, error) {
 }
 
 func EncodeJSONResponse(ctx context.Context, w http.ResponseWriter, response interface{}) error {
-	res, ok := response.(Response)
-	if !ok {
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write([]byte("response type error"))
-		return nil
-	}
+	res := Response{}
+	res.Data = response
+	res.Code = 200
 
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
@@ -43,6 +41,21 @@ func EncodeJSONResponse(ctx context.Context, w http.ResponseWriter, response int
 	}
 	_, _ = w.Write(b)
 	return nil
+}
+
+func KitErrorEncoder() kithttp.ServerOption {
+	return kithttp.ServerErrorEncoder(func(ctx context.Context, err error, w http.ResponseWriter) {
+		res := Response{Error: err.Error(), Code: 500}
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		b, err := json.Marshal(res)
+		if err != nil {
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(err.Error()))
+			return
+		}
+		_, _ = w.Write(b)
+	})
 }
 
 func ResponseJsonEncode(w http.ResponseWriter, v interface{}) {
