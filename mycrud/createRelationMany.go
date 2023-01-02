@@ -13,8 +13,8 @@ import (
 	"strconv"
 )
 
-func (c *CRUD) createRelationManyHandler() {
-	c.handler(CreateRelationManyMethodName, http.MethodPost, "/{tableName}/{id}/{relationTableName}/many", c.createRelationManyEndpoint(), c.createRelationManyDecode())
+func (c *CRUD) CreateRelationManyHandler() {
+	c.Handler(CreateManyMethodName, http.MethodPost, "/{tableName}/{id}/{relationTableName}/many", c.CreateRelationManyEndpoint(), c.CreateRelationManyDecode())
 }
 
 type CreatRelationManyRequest struct {
@@ -24,7 +24,7 @@ type CreatRelationManyRequest struct {
 	Body              interface{} `json:"body"`
 }
 
-func (c *CRUD) createRelationManyDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) CreateRelationManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := CreatRelationManyRequest{}
 		v := mux.Vars(r)
@@ -45,15 +45,15 @@ func (c *CRUD) createRelationManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) createRelationManyEndpoint() endpoint.Endpoint {
+func (c *CRUD) CreateRelationManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(CreatRelationManyRequest)
-		err = c.createRelationMany(ctx, req.TableName, req.Id, req.RelationTableName, req.Body)
+		err = c.CreateRelationMany(ctx, req.TableName, req.Id, req.RelationTableName, req.Body)
 		return c.endpointWrap(nil, err)
 	}
 }
 
-func (c *CRUD) createRelationMany(ctx context.Context, tableName, id, relationTableName string, body interface{}) (err error) {
+func (c *CRUD) CreateRelationMany(ctx context.Context, tableName, id, relationTableName string, body interface{}) (err error) {
 	msg, err := c.tableMsg(tableName)
 	if err != nil {
 		return

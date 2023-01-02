@@ -10,18 +10,18 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) createManyHandler() {
-	c.handler(CreateManyMethodName, http.MethodPost, "/{tableName}/many", c.createManyEndpoint(), c.createManyDecode())
+func (c *CRUD) CreateManyHandler() {
+	c.Handler(CreateManyMethodName, http.MethodPost, "/{tableName}/many", c.CreateManyEndpoint(), c.CreateManyDecode())
 }
 
-type createManyRequest struct {
+type CreateManyRequest struct {
 	TableName string `json:"table_name"`
 	Body      interface{}
 }
 
-func (c *CRUD) createManyDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) CreateManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
-		req := createManyRequest{}
+		req := CreateManyRequest{}
 		v := mux.Vars(r)
 		req.TableName = v["tableName"]
 		msg, err := c.tableMsg(req.TableName)
@@ -40,15 +40,15 @@ func (c *CRUD) createManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) createManyEndpoint() endpoint.Endpoint {
+func (c *CRUD) CreateManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		req := request.(createManyRequest)
-		err = c.createMany(ctx, req.TableName, req.Body)
+		req := request.(CreateManyRequest)
+		err = c.CreateMany(ctx, req.TableName, req.Body)
 		return c.endpointWrap(nil, err)
 	}
 }
 
-func (c *CRUD) createMany(ctx context.Context, tableName string, data interface{}) (err error) {
+func (c *CRUD) CreateMany(ctx context.Context, tableName string, data interface{}) (err error) {
 	_, err = c.tableMsg(tableName)
 	if err != nil {
 		return

@@ -8,18 +8,18 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) deleteOneHandler() {
-	c.handler(DeleteOneMethodName, http.MethodDelete, "/{tableName}/{id}", c.deleteOneEndpoint(), c.deleteOneDecode())
+func (c *CRUD) DeleteOneHandler() {
+	c.Handler(DeleteOneMethodName, http.MethodDelete, "/{tableName}/{id}", c.DeleteOneEndpoint(), c.DeleteOneDecode())
 }
 
-type deleteOneRequest struct {
+type DeleteOneRequest struct {
 	TableName string `json:"tableName"`
 	Id        string `json:"id"`
 }
 
-func (c *CRUD) deleteOneDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) DeleteOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
-		req := deleteOneRequest{}
+		req := DeleteOneRequest{}
 		v := mux.Vars(r)
 		req.TableName = v["tableName"]
 		req.Id = v["id"]
@@ -27,15 +27,15 @@ func (c *CRUD) deleteOneDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) deleteOneEndpoint() endpoint.Endpoint {
+func (c *CRUD) DeleteOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		req := request.(deleteOneRequest)
-		err = c.deleteOne(ctx, req.TableName, req.Id)
+		req := request.(DeleteOneRequest)
+		err = c.DeleteOne(ctx, req.TableName, req.Id)
 		return c.endpointWrap(nil, err)
 	}
 }
 
-func (c *CRUD) deleteOne(ctx context.Context, tableName, id string) (err error) {
+func (c *CRUD) DeleteOne(ctx context.Context, tableName, id string) (err error) {
 	msg, err := c.tableMsg(tableName)
 	if err != nil {
 		return

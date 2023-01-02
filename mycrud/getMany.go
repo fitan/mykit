@@ -11,8 +11,8 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) getManyHandler() {
-	c.handler(GetManyMethodName, http.MethodGet, "/{tableName}", c.getManyEndpoint(), c.getManyDecode(), c.KitGormScopesBefore())
+func (c *CRUD) GetManyHandler() {
+	c.Handler(GetManyMethodName, http.MethodGet, "/{tableName}", c.GetManyEndpoint(), c.GetManyDecode())
 }
 
 type GetManyData struct {
@@ -24,7 +24,7 @@ type GetManyRequest struct {
 	TableName string `json:"tableName"`
 }
 
-func (c *CRUD) getManyDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) GetManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetManyRequest{}
 		v := mux.Vars(r)
@@ -34,15 +34,15 @@ func (c *CRUD) getManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) getManyEndpoint() endpoint.Endpoint {
+func (c *CRUD) GetManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetManyRequest)
-		res, err := c.getMany(ctx, req.TableName, nil)
-		return c.endpointWrap(res, err)
+		res, err := c.GetMany(ctx, req.TableName, nil)
+		return res, err
 	}
 }
 
-func (c *CRUD) getMany(ctx context.Context, tableName string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
+func (c *CRUD) GetMany(ctx context.Context, tableName string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
 	msg, err := c.tableMsg(tableName)
 	if err != nil {
 		return

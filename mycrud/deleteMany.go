@@ -9,18 +9,18 @@ import (
 	"strings"
 )
 
-type deleteManyRequest struct {
+type DeleteManyRequest struct {
 	TableName string   `json:"tableName"`
 	Ids       []string `json:"ids"`
 }
 
-func (c *CRUD) deleteManyHandler() {
-	c.handler(DeleteManyMethodName, http.MethodDelete, "/{tableName}", c.deleteManyEndpoint(), c.deleteManyDecode())
+func (c *CRUD) DeleteManyHandler() {
+	c.Handler(DeleteManyMethodName, http.MethodDelete, "/{tableName}", c.DeleteManyEndpoint(), c.DeleteManyDecode())
 }
 
-func (c *CRUD) deleteManyDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) DeleteManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
-		req := deleteManyRequest{}
+		req := DeleteManyRequest{}
 		v := mux.Vars(r)
 		req.TableName = v["tableName"]
 		ids := r.URL.Query().Get("ids")
@@ -29,15 +29,15 @@ func (c *CRUD) deleteManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) deleteManyEndpoint() endpoint.Endpoint {
+func (c *CRUD) DeleteManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		req := request.(deleteManyRequest)
-		err = c.deleteMany(ctx, req.TableName, req.Ids)
+		req := request.(DeleteManyRequest)
+		err = c.DeleteMany(ctx, req.TableName, req.Ids)
 		return c.endpointWrap(nil, err)
 	}
 }
 
-func (c *CRUD) deleteMany(ctx context.Context, tableName string, ids []string) (err error) {
+func (c *CRUD) DeleteMany(ctx context.Context, tableName string, ids []string) (err error) {
 	msg, err := c.tableMsg(tableName)
 	if err != nil {
 		return

@@ -12,8 +12,8 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) getRelationOneHandler() {
-	c.handler(GetRelationOneMethodName, http.MethodGet, "/{tableName}/{id}/{relationTableName}", c.getRelationOneEndpoint(), c.getRelationOneDecode())
+func (c *CRUD) GetRelationOneHandler() {
+	c.Handler(GetOneMethodName, http.MethodGet, "/{tableName}/{id}/{relationTableName}", c.GetRelationOneEndpoint(), c.GetRelationOneDecode())
 }
 
 type GetRelationOneRequest struct {
@@ -22,7 +22,7 @@ type GetRelationOneRequest struct {
 	RelationTableName string `json:"RelationTableName"`
 }
 
-func (c *CRUD) getRelationOneDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) GetRelationOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetRelationOneRequest{}
 		v := mux.Vars(r)
@@ -33,15 +33,15 @@ func (c *CRUD) getRelationOneDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) getRelationOneEndpoint() endpoint.Endpoint {
+func (c *CRUD) GetRelationOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetRelationOneRequest)
-		res, err := c.getRelationOne(ctx, req.TableName, req.Id, req.RelationTableName, nil)
-		return c.endpointWrap(res, err)
+		res, err := c.GetRelationOne(ctx, req.TableName, req.Id, req.RelationTableName, nil)
+		return res, err
 	}
 }
 
-func (c *CRUD) getRelationOne(ctx context.Context, tableName, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data interface{}, err error) {
+func (c *CRUD) GetRelationOne(ctx context.Context, tableName, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data interface{}, err error) {
 	relationTableNameMsg, err := c.tableMsg(relationTableName)
 	if err != nil {
 		return

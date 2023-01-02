@@ -25,18 +25,18 @@ type User struct {
 		Bs          string `json:"bs"`
 	} `json:"company" gorm:"serializer:json;column:company;notnull;comment:'公司'"`
 
-	Posts  []Post  `json:"posts" gorm:"foreignKey:UserId;references:ID"`
-	Albums []Album `json:"albums" gorm:"foreignKey:UserId;references:ID"`
-	Todos  []Todo  `json:"todos" gorm:"foreignKey:UserId;references:ID"`
+	Posts  *[]Post  `json:"posts,omitempty" gorm:"foreignKey:UserId;references:ID"`
+	Albums *[]Album `json:"albums,omitempty" gorm:"foreignKey:UserId;references:ID"`
+	Todos  *[]Todo  `json:"todos,omitempty" gorm:"foreignKey:UserId;references:ID"`
 }
 
 type Post struct {
 	gorm.Model
-	UserId   int       `json:"userId" gorm:"column:user_id;notnull;comment:'用户id'"`
-	Title    string    `json:"title" gorm:"column:title;notnull;comment:'标题'"`
-	Body     string    `json:"body" gorm:"column:body;notnull;comment:'内容'"`
-	User     User      `json:"user" gorm:"foreignKey:UserId;references:ID"`
-	Comments []Comment `json:"comments" gorm:"foreignKey:PostId;references:ID"`
+	UserId   int        `json:"userId" gorm:"column:user_id;notnull;comment:'用户id'"`
+	Title    string     `json:"title" gorm:"column:title;notnull;comment:'标题'"`
+	Body     string     `json:"body" gorm:"column:body;notnull;comment:'内容'"`
+	User     *User      `json:"user,omitempty" gorm:"foreignKey:UserId;references:ID"`
+	Comments *[]Comment `json:"comments,omitempty" gorm:"foreignKey:PostId;references:ID"`
 }
 
 type Comment struct {
@@ -45,15 +45,15 @@ type Comment struct {
 	Name   string `json:"name" gorm:"column:name;notnull;comment:'姓名'"`
 	Email  string `json:"email" gorm:"column:email;notnull;comment:'邮箱'"`
 	Body   string `json:"body" gorm:"column:body;notnull;comment:'内容'"`
-	Post   Post   `json:"post" gorm:"foreignKey:ID;references:PostId"`
+	Post   *Post  `json:"post,omitempty" gorm:"foreignKey:ID;references:PostId"`
 }
 
 type Album struct {
 	gorm.Model
-	UserId int     `json:"userId" gorm:"column:user_id;notnull;comment:'用户id'"`
-	Title  string  `json:"title" gorm:"column:title;notnull;comment:'标题'"`
-	User   User    `json:"user" gorm:"foreignKey:UserId"`
-	Photos []Photo `json:"photos" gorm:"foreignKey:AlbumId;references:ID"`
+	UserId int      `json:"userId" gorm:"column:user_id;notnull;comment:'用户id'"`
+	Title  string   `json:"title" gorm:"column:title;notnull;comment:'标题'"`
+	User   *User    `json:"user" gorm:"foreignKey:UserId"`
+	Photos *[]Photo `json:"photos,omitempty" gorm:"foreignKey:AlbumId;references:ID"`
 }
 
 type Photo struct {
@@ -62,7 +62,7 @@ type Photo struct {
 	Title        string `json:"title" gorm:"column:title;notnull;comment:'标题'"`
 	Url          string `json:"url" gorm:"column:url;notnull;comment:'url'"`
 	ThumbnailUrl string `json:"thumbnailUrl" gorm:"column:thumbnail_url;notnull;comment:'缩略图url'"`
-	Album        Album  `json:"album" gorm:"foreignKey:ID;references:AlbumId"`
+	Album        *Album `json:"album,omitempty" gorm:"foreignKey:ID;references:AlbumId"`
 }
 
 type Todo struct {
@@ -70,5 +70,5 @@ type Todo struct {
 	UserId    int    `json:"userId" gorm:"column:user_id;notnull;comment:'用户id'"`
 	Title     string `json:"title" gorm:"column:title;notnull;comment:'标题'"`
 	Completed bool   `json:"completed" gorm:"column:completed;notnull;comment:'是否完成'"`
-	User      User   `json:"user" gorm:"foreignKey:UserId;references:ID"`
+	User      *User  `json:"user,omitempty" gorm:"foreignKey:UserId;references:ID"`
 }

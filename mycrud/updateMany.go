@@ -11,18 +11,18 @@ import (
 	"reflect"
 )
 
-func (c *CRUD) updateManyHandler() {
-	c.handler(UpdateManyMethodName, http.MethodPut, "/{tableName}", c.updateManyEndpoint(), c.updateManyDecode())
+func (c *CRUD) UpdateManyHandler() {
+	c.Handler(UpdateManyMethodName, http.MethodPut, "/{tableName}", c.UpdateManyEndpoint(), c.UpdateManyDecode())
 }
 
-type updateManyRequest struct {
+type UpdateManyRequest struct {
 	TableName string      `json:"tableName"`
 	Body      interface{} `json:"body"`
 }
 
-func (c *CRUD) updateManyDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) UpdateManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
-		req := updateManyRequest{}
+		req := UpdateManyRequest{}
 		v := mux.Vars(r)
 		req.TableName = v["tableName"]
 
@@ -44,15 +44,15 @@ func (c *CRUD) updateManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) updateManyEndpoint() endpoint.Endpoint {
+func (c *CRUD) UpdateManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		req := request.(updateManyRequest)
-		err = c.updateMany(ctx, req.TableName, req.Body)
+		req := request.(UpdateManyRequest)
+		err = c.UpdateMany(ctx, req.TableName, req.Body)
 		return c.endpointWrap(nil, err)
 	}
 }
 
-func (c *CRUD) updateMany(ctx context.Context, tableName string, data interface{}) (err error) {
+func (c *CRUD) UpdateMany(ctx context.Context, tableName string, data interface{}) (err error) {
 	_, err = c.tableMsg(tableName)
 	if err != nil {
 		return

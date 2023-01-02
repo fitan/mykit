@@ -2,6 +2,7 @@ package mygorm
 
 import (
 	"fmt"
+	"github.com/davecgh/go-spew/spew"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 	"net/http"
@@ -89,9 +90,10 @@ func (s qParam) localTable() bool {
 }
 
 type relationTable struct {
-	tableName  string
-	foreignKey string
-	primaryKey string
+	tableName         string
+	relationTableName string
+	foreignKey        string
+	primaryKey        string
 }
 
 func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, err error) {
@@ -129,9 +131,10 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 		}
 
 		relationTables = append(relationTables, relationTable{
-			tableName:  relation.FieldSchema.Table,
-			foreignKey: relation.References[0].ForeignKey.DBName,
-			primaryKey: relation.References[0].PrimaryKey.DBName,
+			tableName:         tmpSchema.Table,
+			relationTableName: relation.FieldSchema.Table,
+			foreignKey:        relation.References[0].ForeignKey.DBName,
+			primaryKey:        relation.References[0].PrimaryKey.DBName,
 		})
 
 		//fmt.Println("tmpField", tmpSchema.FieldsByName, v)
@@ -157,14 +160,16 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 		return
 	}
 
+	spew.Dump(relationTables)
+
 	for i := len(relationTables) - 1; i >= 0; i-- {
 		r := relationTables[i]
 
 		tmpFn := fn
 
 		fn = func(db *gorm.DB) *gorm.DB {
-			value := tmpFn(db.Session(&gorm.Session{NewDB: true}).Table(r.tableName)).Select(r.primaryKey)
-			return db.Where(r.foreignKey+" IN (?)", value)
+			value := tmpFn(db.Session(&gorm.Session{NewDB: true}).Table(r.relationTableName)).Select(r.foreignKey)
+			return db.Where(r.primaryKey+" IN (?)", value)
 		}
 
 	}

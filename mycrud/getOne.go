@@ -8,8 +8,8 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) getOneHandler() {
-	c.handler(GetOneMethodName, http.MethodGet, "/{tableName}/{id}", c.getOneEndpoint(), c.getOneDecode())
+func (c *CRUD) GetOneHandler() {
+	c.Handler(GetOneMethodName, http.MethodGet, "/{tableName}/{id}", c.GetOneEndpoint(), c.GetOneDecode())
 }
 
 type GetOneRequest struct {
@@ -17,7 +17,7 @@ type GetOneRequest struct {
 	Id        string `json:"id"`
 }
 
-func (c *CRUD) getOneDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) GetOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetOneRequest{}
 		v := mux.Vars(r)
@@ -27,15 +27,15 @@ func (c *CRUD) getOneDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) getOneEndpoint() endpoint.Endpoint {
+func (c *CRUD) GetOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetOneRequest)
-		res, err := c.getOne(ctx, req.TableName, req.Id)
-		return c.endpointWrap(res, err)
+		res, err := c.GetOne(ctx, req.TableName, req.Id)
+		return res, err
 	}
 }
 
-func (c *CRUD) getOne(ctx context.Context, tableName, id string) (data interface{}, err error) {
+func (c *CRUD) GetOne(ctx context.Context, tableName, id string) (data interface{}, err error) {
 	msg, err := c.tableMsg(tableName)
 	if err != nil {
 		return

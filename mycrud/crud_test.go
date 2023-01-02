@@ -1,6 +1,7 @@
 package mycrud
 
 import (
+	"fmt"
 	"github.com/fitan/mykit/mycrud/ormdata"
 	"github.com/fitan/mykit/myrouter"
 	kithttp "github.com/go-kit/kit/transport/http"
@@ -44,20 +45,26 @@ func TestNewCRUD(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				crud := NewCRUD(tt.args.m, tt.args.db, tt.args.encode)
-				crud.RegisterTable(
+				crud := NewCRUD(tt.args.m, tt.args.db, tt.args.encode, nil)
+				userReg, err := crud.RegisterTable(
 					func() interface{} {
 						return &ormdata.User{}
 					}, func() interface{} {
 						return &[]ormdata.User{}
 					})
-				crud.RegisterTable(
+				if err != nil {
+					panic(err)
+				}
+				_, err = crud.RegisterTable(
 					func() interface{} {
 						return &ormdata.Todo{}
 					}, func() interface{} {
 						return &[]ormdata.Todo{}
 					})
-				crud.RegisterTable(
+				if err != nil {
+					panic(err)
+				}
+				postReg, err := crud.RegisterTable(
 					func() interface{} {
 						return &ormdata.Post{}
 					},
@@ -65,7 +72,10 @@ func TestNewCRUD(t *testing.T) {
 						return &[]ormdata.Post{}
 					},
 				)
-				crud.RegisterTable(
+				if err != nil {
+					panic(err)
+				}
+				_, err = crud.RegisterTable(
 					func() interface{} {
 						return &ormdata.Photo{}
 					},
@@ -73,7 +83,11 @@ func TestNewCRUD(t *testing.T) {
 						return &[]ormdata.Photo{}
 					},
 				)
-				crud.RegisterTable(
+				if err != nil {
+					panic(err)
+				}
+
+				_, err = crud.RegisterTable(
 					func() interface{} {
 						return &ormdata.Comment{}
 					},
@@ -81,7 +95,10 @@ func TestNewCRUD(t *testing.T) {
 						return &[]ormdata.Comment{}
 					},
 				)
-				crud.RegisterTable(
+				if err != nil {
+					panic(err)
+				}
+				_, err = crud.RegisterTable(
 					func() interface{} {
 						return &ormdata.Album{}
 					},
@@ -89,8 +106,41 @@ func TestNewCRUD(t *testing.T) {
 						return &[]ormdata.Album{}
 					},
 				)
+				if err != nil {
+					panic(err)
+				}
+				fmt.Println(userReg, postReg)
+
+				//userReg.Dto(GetOneMethodName, func(v interface{}) interface{} {
+				//	data := v.(*ormdata.User)
+				//	return UserDto{ID:  data.ID}
+				//}).Dto(GetManyMethodName, func(v interface{}) interface{} {
+				//	data := v.(GetManyData)
+				//	var result []UserDto
+				//	for _, v := range *(data.List.(*[]ormdata.User)) {
+				//		result = append(result, UserDto{ID: v.ID})
+				//	}
+				//
+				//	data.List = result
+				//	return data
+				//})
+				//
+				//postReg.Dto(GetOneMethodName, func(v interface{}) interface{} {
+				//	data := v.(*ormdata.Post)
+				//	return UserDto{ID: data.ID}
+				//}).Dto(GetManyMethodName, func(v interface{}) interface{} {
+				//	data := v.(GetManyData)
+				//	var result []UserDto
+				//	for _, v := range *(data.List.(*[]ormdata.Post)) {
+				//		result = append(result, UserDto{ID: v.ID})
+				//	}
+				//
+				//	data.List = result
+				//	return data
+				//})
 
 				crud.run()
+				crud.D2Handler(crud.m)
 				log.Println("crud run")
 				r.Run(":8080")
 			},

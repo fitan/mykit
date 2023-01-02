@@ -10,8 +10,8 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) createOneHandler() {
-	c.handler(CreateOneMethodName, http.MethodPost, "/{tableName}", c.createOneEndpoint(), c.createOneDecode())
+func (c *CRUD) CreateOneHandler() {
+	c.Handler(CreateOneMethodName, http.MethodPost, "/{tableName}", c.CreateOneEndpoint(), c.CreateOneDecode())
 }
 
 type CreateOneRequest struct {
@@ -19,7 +19,7 @@ type CreateOneRequest struct {
 	Body      interface{}
 }
 
-func (c *CRUD) createOneDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) CreateOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := CreateOneRequest{}
 		v := mux.Vars(r)
@@ -42,15 +42,15 @@ func (c *CRUD) createOneDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) createOneEndpoint() endpoint.Endpoint {
+func (c *CRUD) CreateOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(CreateOneRequest)
-		err = c.createOne(ctx, req.TableName, req.Body)
+		err = c.CreateOne(ctx, req.TableName, req.Body)
 		return c.endpointWrap(nil, err)
 	}
 }
 
-func (c *CRUD) createOne(ctx context.Context, tableName string, data interface{}) (err error) {
+func (c *CRUD) CreateOne(ctx context.Context, tableName string, data interface{}) (err error) {
 	_, err = c.tableMsg(tableName)
 	if err != nil {
 		return

@@ -13,8 +13,8 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) getRelationManyHandler() {
-	c.handler(GetRelationManyMethodName, http.MethodGet, "/{tableName}/{id}/{relationTableName}/many", c.getRelationManyEndpoint(), c.getRelationManyDecode(), c.KitGormScopesBefore())
+func (c *CRUD) GetRelationManyHandler() {
+	c.Handler(GetManyMethodName, http.MethodGet, "/{tableName}/{id}/{relationTableName}/many", c.GetRelationManyEndpoint(), c.GetRelationManyDecode())
 }
 
 type GetRelationManyRequest struct {
@@ -23,7 +23,7 @@ type GetRelationManyRequest struct {
 	RelationTableName string `json:"RelationTableName"`
 }
 
-func (c *CRUD) getRelationManyDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) GetRelationManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetRelationManyRequest{}
 		v := mux.Vars(r)
@@ -34,15 +34,15 @@ func (c *CRUD) getRelationManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) getRelationManyEndpoint() endpoint.Endpoint {
+func (c *CRUD) GetRelationManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetRelationManyRequest)
-		res, err := c.getRelationMany(ctx, req.TableName, req.Id, req.RelationTableName, nil)
-		return c.endpointWrap(res, err)
+		res, err := c.GetRelationMany(ctx, req.TableName, req.Id, req.RelationTableName, nil)
+		return res, err
 	}
 }
 
-func (c *CRUD) getRelationMany(ctx context.Context, tableName, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
+func (c *CRUD) GetRelationMany(ctx context.Context, tableName, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
 	relationTableNameMsg, err := c.tableMsg(relationTableName)
 	if err != nil {
 		return
@@ -83,7 +83,7 @@ func (c *CRUD) getRelationMany(ctx context.Context, tableName, id, relationTable
 	if err != nil {
 		return
 	}
-	err = totalDB.Model(relationTableNameMsg.oneObjFn()).Where(relationPrimaryKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
+	err = totalDB.Model(relationTableNameMsg.oneObjFn()).Where(relationForeignKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
 	if err != nil {
 		err = errors.Wrap(err, "db.Count")
 		return
@@ -97,7 +97,7 @@ func (c *CRUD) getRelationMany(ctx context.Context, tableName, id, relationTable
 
 	list := relationTableNameMsg.manyObjFn()
 
-	db.Where(relationPrimaryKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).Find(list)
+	db.Where(relationForeignKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Find(list)
 
 	data.List = list
 	data.Total = total

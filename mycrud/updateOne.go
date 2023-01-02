@@ -10,19 +10,19 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) updateOneHandler() {
-	c.handler(UpdateOneMethodName, http.MethodPut, "/{tableName}/{id}", c.updateOneEndpoint(), c.updateOneDecode())
+func (c *CRUD) UpdateOneHandler() {
+	c.Handler(UpdateOneMethodName, http.MethodPut, "/{tableName}/{id}", c.UpdateOneEndpoint(), c.UpdateOneDecode())
 }
 
-type updateOneRequest struct {
+type UpdateOneRequest struct {
 	TableName string      `json:"tableName"`
 	Id        string      `json:"id"`
 	Body      interface{} `json:"body"`
 }
 
-func (c *CRUD) updateOneDecode() kithttp.DecodeRequestFunc {
+func (c *CRUD) UpdateOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
-		req := updateOneRequest{}
+		req := UpdateOneRequest{}
 		v := mux.Vars(r)
 		req.TableName = v["tableName"]
 		req.Id = v["id"]
@@ -46,15 +46,15 @@ func (c *CRUD) updateOneDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) updateOneEndpoint() endpoint.Endpoint {
+func (c *CRUD) UpdateOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		req := request.(updateOneRequest)
-		err = c.updateOne(ctx, req.TableName, req.Id, req.Body)
+		req := request.(UpdateOneRequest)
+		err = c.UpdateOne(ctx, req.TableName, req.Id, req.Body)
 		return c.endpointWrap(nil, err)
 	}
 }
 
-func (c *CRUD) updateOne(ctx context.Context, tableName string, id string, data interface{}) (err error) {
+func (c *CRUD) UpdateOne(ctx context.Context, tableName string, id string, data interface{}) (err error) {
 	msg, err := c.tableMsg(tableName)
 	if err != nil {
 		return
