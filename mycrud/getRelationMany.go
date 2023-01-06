@@ -13,37 +13,47 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) GetRelationManyHandler() {
-	c.Handler(GetManyMethodName, http.MethodGet, "/{tableName}/{id}/{relationTableName}/many", c.GetRelationManyEndpoint(), c.GetRelationManyDecode())
+type GetRelationManyImpl interface {
+	GetRelationManyHandler()
+	GetRelationManyDecode() kithttp.DecodeRequestFunc
+	GetRelationManyEndpoint() endpoint.Endpoint
+	GetRelationMany(ctx context.Context, id string, data interface{}) (err error)
+}
+
+type GetRelationMany struct {
+	Crud     *Core
+	TableMsg *tableMsg
+}
+
+func (g *GetRelationMany) GetRelationManyHandler() {
+	g.Crud.Handler(GetManyMethodName, http.MethodGet, "/"+g.TableMsg.schema.Table+"/{id}/{relationTableName}/many", g.GetRelationManyEndpoint(), g.GetRelationManyDecode())
 }
 
 type GetRelationManyRequest struct {
-	TableName         string `json:"tableName"`
 	Id                string `json:"id"`
 	RelationTableName string `json:"RelationTableName"`
 }
 
-func (c *CRUD) GetRelationManyDecode() kithttp.DecodeRequestFunc {
+func (g *GetRelationMany) GetRelationManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetRelationManyRequest{}
 		v := mux.Vars(r)
-		req.TableName = v["tableName"]
 		req.Id = v["id"]
 		req.RelationTableName = v["relationTableName"]
 		return req, nil
 	}
 }
 
-func (c *CRUD) GetRelationManyEndpoint() endpoint.Endpoint {
+func (g *GetRelationMany) GetRelationManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetRelationManyRequest)
-		res, err := c.GetRelationMany(ctx, req.TableName, req.Id, req.RelationTableName, nil)
+		res, err := g.GetRelationMany(ctx, req.Id, req.RelationTableName, nil)
 		return res, err
 	}
 }
 
-func (c *CRUD) GetRelationMany(ctx context.Context, tableName, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
-	relationTableNameMsg, err := c.tableMsg(relationTableName)
+func (g *GetRelationMany) GetRelationMany(ctx context.Context, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
+	relationTableNameMsg, err := g.Crud.tableMsg(relationTableName)
 	if err != nil {
 		return
 	}
@@ -53,9 +63,9 @@ func (c *CRUD) GetRelationMany(ctx context.Context, tableName, id, relationTable
 	var hasRelation bool
 
 	for _, v := range relationTableNameMsg.schema.Relationships.Relations {
-		if v.FieldSchema.Table == tableName {
+		if v.FieldSchema.Table == g.TableMsg.schema.Table {
 			relation = *v
-			_, err = c.tableMsg(relationTableName)
+			_, err = g.Crud.tableMsg(relationTableName)
 			if err != nil {
 				return
 			}
@@ -70,7 +80,7 @@ func (c *CRUD) GetRelationMany(ctx context.Context, tableName, id, relationTable
 	}
 
 	if len(relation.References) == 0 {
-		err = fmt.Errorf("not found reference: %s", tableName)
+		err = fmt.Errorf("not found reference: %s", g.TableMsg.schema.Table)
 		return
 	}
 
@@ -78,18 +88,18 @@ func (c *CRUD) GetRelationMany(ctx context.Context, tableName, id, relationTable
 	relationPrimaryKey := relation.References[0].PrimaryKey.DBName
 
 	var total int64
-	totalDB := c.db.Db(ctx)
+	totalDB := g.Crud.db.Db(ctx)
 	totalDB, err = mygorm.SetQScopes(ctx, totalDB)
 	if err != nil {
 		return
 	}
-	err = totalDB.Model(relationTableNameMsg.oneObjFn()).Where(relationForeignKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
+	err = totalDB.Model(relationTableNameMsg.oneObjFn()).Where(relationForeignKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(g.TableMsg.schema.Table).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
 	if err != nil {
 		err = errors.Wrap(err, "db.Count")
 		return
 	}
 
-	db := c.db.Db(ctx).Model(relationTableNameMsg.oneObjFn()).Scopes(scopes...)
+	db := g.Crud.db.Db(ctx).Model(relationTableNameMsg.oneObjFn()).Scopes(scopes...)
 	db, err = mygorm.SetScopes(ctx, db)
 	if err != nil {
 		return
@@ -97,7 +107,7 @@ func (c *CRUD) GetRelationMany(ctx context.Context, tableName, id, relationTable
 
 	list := relationTableNameMsg.manyObjFn()
 
-	db.Where(relationForeignKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Find(list)
+	db.Where(relationForeignKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(g.TableMsg.schema.Table).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Find(list)
 
 	data.List = list
 	data.Total = total

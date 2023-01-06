@@ -29,14 +29,17 @@ const (
 	RelationMethodMethodName = "RelationMethod"
 )
 
-type CRUD struct {
+type Core struct {
 	tables       map[string]*tableMsg
 	m            *mux.Router
 	db           *mygorm.DB
 	enc          kithttp.EncodeResponseFunc
 	endpointWrap func(response interface{}, err error) (interface{}, error)
 	options      []kithttp.ServerOption
+	permissions  Permissions
 }
+
+type Permissions func(ctx context.Context, tableName string, methodName string) (bool, error)
 
 //type methodMsg struct {
 //	getOneHas     bool
@@ -59,18 +62,18 @@ type CRUD struct {
 //	options       []kithttp.ServerOption
 //}
 
-func NewCRUD(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc, opts []kithttp.ServerOption) *CRUD {
+func NewCRUD(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc, opts []kithttp.ServerOption) *Core {
 	enc := myhttp.EncodeJSONResponse
 	if encode != nil {
 		enc = encode
 	}
-	crud := &CRUD{m: m, tables: map[string]*tableMsg{}, db: mygorm.New(db), enc: enc, endpointWrap: myhttp.WrapResponse, options: make([]kithttp.ServerOption, 0)}
+	crud := &Core{m: m, tables: map[string]*tableMsg{}, db: mygorm.New(db), enc: enc, endpointWrap: myhttp.WrapResponse, options: make([]kithttp.ServerOption, 0)}
 	crud.options = append(crud.options, myhttp.KitErrorEncoder())
 	crud.options = append(crud.options, opts...)
 	return crud
 }
 
-func (c *CRUD) kitDtoEncodeJsonResponse(dto func(i interface{}) interface{}) kithttp.EncodeResponseFunc {
+func (c *Core) kitDtoEncodeJsonResponse(dto func(i interface{}) interface{}) kithttp.EncodeResponseFunc {
 	return func(ctx context.Context, writer http.ResponseWriter, i interface{}) error {
 		if dto != nil {
 			i = dto(i)
@@ -79,7 +82,7 @@ func (c *CRUD) kitDtoEncodeJsonResponse(dto func(i interface{}) interface{}) kit
 	}
 }
 
-func (c *CRUD) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}) (*tableMsg, error) {
+func (c *Core) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}) (*tableMsg, error) {
 	tSchema, err := schema.Parse(oneObjFn(), &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
 		return nil, errors.Wrap(err, "schema.Parse")
@@ -99,11 +102,11 @@ func (c *CRUD) RegisterTable(oneObjFn func() interface{}, manyObjFn func() inter
 	return c.tables[tSchema.Table], nil
 }
 
-//func (c *CRUD) RegisterMethod(tableName string) *RegisterMethodHelper {
+//func (c *Core) RegisterMethod(tableName string) *RegisterMethodHelper {
 //	return &RegisterMethodHelper{crud: c, tableName: tableName}
 //}
 
-//func (c *CRUD) runMethod() {
+//func (c *Core) runMethod() {
 //	c.m.HandleFunc("/{tableName}/method/{methodName}", func(writer http.ResponseWriter, request *http.Request) {
 //		v := mux.Vars(request)
 //		tableName := v["tableName"]
@@ -131,7 +134,7 @@ func (c *CRUD) RegisterTable(oneObjFn func() interface{}, manyObjFn func() inter
 //	}
 //}
 
-func (c *CRUD) run() {
+func (c *Core) run() {
 	c.GetOneHandler()
 	c.GetManyHandler()
 	c.GetRelationOneHandler()
@@ -146,7 +149,7 @@ func (c *CRUD) run() {
 	c.DeleteManyHandler()
 }
 
-func (c *CRUD) tableMsg(tableName string) (*tableMsg, error) {
+func (c *Core) tableMsg(tableName string) (*tableMsg, error) {
 	msg, ok := c.tables[tableName]
 	if !ok {
 		return msg, fmt.Errorf("not found table %s", tableName)
@@ -154,7 +157,7 @@ func (c *CRUD) tableMsg(tableName string) (*tableMsg, error) {
 	return msg, nil
 }
 
-func (c *CRUD) KitGormScopesBefore() kithttp.ServerOption {
+func (c *Core) KitGormScopesBefore() kithttp.ServerOption {
 	return kithttp.ServerBefore(func(ctx context.Context, request *http.Request) context.Context {
 
 		tableName, ok := mux.Vars(request)["tableName"]
@@ -184,7 +187,7 @@ func (c *CRUD) KitGormScopesBefore() kithttp.ServerOption {
 	})
 }
 
-func (c *CRUD) Handler(methodName, httpMethod string, path string, e endpoint.Endpoint, dec kithttp.DecodeRequestFunc, opts ...kithttp.ServerOption) {
+func (c *Core) Handler(methodName, httpMethod string, path string, e endpoint.Endpoint, dec kithttp.DecodeRequestFunc, opts ...kithttp.ServerOption) {
 	c.m.HandleFunc("/crud"+path, func(writer http.ResponseWriter, request *http.Request) {
 		vars := mux.Vars(request)
 		tableName := vars["tableName"]
@@ -210,4 +213,24 @@ func (c *CRUD) Handler(methodName, httpMethod string, path string, e endpoint.En
 		kithttp.NewServer(e, dec, enc, o...).ServeHTTP(writer, request)
 	}).Methods(httpMethod).Name(methodName)
 
+}
+
+func NewCrudService(crud *Core, tableMsg *tableMsg) {
+	CrudService{
+		GetOne: &GetOne{
+			Crud:     crud,
+			TableMsg: tableMsg,
+		},
+		GetMany:            nil,
+		CreateOne:          nil,
+		CreateMany:         nil,
+		UpdateOne:          nil,
+		UpdateMany:         nil,
+		DeleteOne:          nil,
+		DeleteMany:         nil,
+		GetRelationOne:     nil,
+		GetRelationMany:    nil,
+		CreateRelationOne:  nil,
+		CreateRelationMany: nil,
+	}
 }

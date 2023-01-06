@@ -4,48 +4,52 @@ import (
 	"context"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/gorilla/mux"
 	"net/http"
 	"strings"
 )
 
+type DeleteManyImpl interface {
+	DeleteManyHandler()
+	DeleteManyDecode() kithttp.DecodeRequestFunc
+	DeleteManyEndpoint() endpoint.Endpoint
+	DeleteMany(ctx context.Context, ids []string) (err error)
+}
+
 type DeleteManyRequest struct {
-	TableName string   `json:"tableName"`
-	Ids       []string `json:"ids"`
+	Ids []string `json:"ids"`
 }
 
-func (c *CRUD) DeleteManyHandler() {
-	c.Handler(DeleteManyMethodName, http.MethodDelete, "/{tableName}", c.DeleteManyEndpoint(), c.DeleteManyDecode())
+type DeleteMany struct {
+	Crud     *Core
+	TableMsg *tableMsg
 }
 
-func (c *CRUD) DeleteManyDecode() kithttp.DecodeRequestFunc {
+func (d *DeleteMany) DeleteManyHandler() {
+	d.Crud.Handler(DeleteManyMethodName, http.MethodDelete, "/{tableName}", d.DeleteManyEndpoint(), d.DeleteManyDecode())
+}
+
+func (d *DeleteMany) DeleteManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := DeleteManyRequest{}
-		v := mux.Vars(r)
-		req.TableName = v["tableName"]
 		ids := r.URL.Query().Get("ids")
 		req.Ids = strings.Split(ids, ",")
 		return req, nil
 	}
 }
 
-func (c *CRUD) DeleteManyEndpoint() endpoint.Endpoint {
+func (d *DeleteMany) DeleteManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(DeleteManyRequest)
-		err = c.DeleteMany(ctx, req.TableName, req.Ids)
-		return c.endpointWrap(nil, err)
+		err = d.DeleteMany(ctx, req.Ids)
+		return nil, err
 	}
 }
 
-func (c *CRUD) DeleteMany(ctx context.Context, tableName string, ids []string) (err error) {
-	msg, err := c.tableMsg(tableName)
-	if err != nil {
-		return
-	}
+func (d *DeleteMany) DeleteMany(ctx context.Context, ids []string) (err error) {
 
-	db, commit := c.db.Tx(ctx)
+	db, commit := d.Crud.db.Tx(ctx)
 	defer commit(err)
 
-	err = db.Table(tableName).Where("id in (?)", ids).Delete(&(msg.oneObjFn)).Error
+	err = db.Model(d.TableMsg.oneObjFn()).Where("id in (?)", ids).Delete(d.TableMsg.oneObjFn()).Error
 	return
 }

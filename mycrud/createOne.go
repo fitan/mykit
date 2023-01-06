@@ -5,32 +5,35 @@ import (
 	"encoding/json"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"net/http"
 )
 
-func (c *CRUD) CreateOneHandler() {
-	c.Handler(CreateOneMethodName, http.MethodPost, "/{tableName}", c.CreateOneEndpoint(), c.CreateOneDecode())
+type CreateOneImpl interface {
+	CreateOneHandler()
+	CreateOneDecode() kithttp.DecodeRequestFunc
+	CreateOneEndpoint() endpoint.Endpoint
+	CreateOne(ctx context.Context, body interface{}) (err error)
+}
+
+type CreateOne struct {
+	Crud     *Core
+	TableMsg *tableMsg
+}
+
+func (c *CreateOne) CreateOneHandler() {
+	c.Crud.Handler(CreateOneMethodName, http.MethodPost, "/"+c.TableMsg.schema.Table, c.CreateOneEndpoint(), c.CreateOneDecode())
 }
 
 type CreateOneRequest struct {
-	TableName string `json:"tableName"`
-	Body      interface{}
+	Body interface{}
 }
 
-func (c *CRUD) CreateOneDecode() kithttp.DecodeRequestFunc {
+func (c *CreateOne) CreateOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := CreateOneRequest{}
-		v := mux.Vars(r)
-		req.TableName = v["tableName"]
 
-		msg, err := c.tableMsg(req.TableName)
-		if err != nil {
-			return
-		}
-
-		body := msg.oneObjFn()
+		body := c.TableMsg.oneObjFn()
 
 		err = json.NewDecoder(r.Body).Decode(body)
 		if err != nil {
@@ -42,26 +45,22 @@ func (c *CRUD) CreateOneDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) CreateOneEndpoint() endpoint.Endpoint {
+func (c *CreateOne) CreateOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(CreateOneRequest)
-		err = c.CreateOne(ctx, req.TableName, req.Body)
-		return c.endpointWrap(nil, err)
+		err = c.CreateOne(ctx, req.Body)
+		return nil, err
 	}
 }
 
-func (c *CRUD) CreateOne(ctx context.Context, tableName string, data interface{}) (err error) {
-	_, err = c.tableMsg(tableName)
-	if err != nil {
-		return
-	}
+func (c *CreateOne) CreateOne(ctx context.Context, data interface{}) (err error) {
 
-	db, commit := c.db.Tx(ctx)
+	db, commit := c.Crud.db.Tx(ctx)
 	defer commit(err)
 
-	err = db.Table(tableName).Create(data).Error
+	err = db.Model(c.TableMsg.oneObjFn()).Create(data).Error
 	if err != nil {
-		err = errors.Wrap(err, "db.Table(tableName).Create(data).Error")
+		err = errors.Wrap(err, "db.Create")
 		return
 	}
 	return

@@ -29,7 +29,7 @@ func TestNewCRUD(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want *CRUD
+		want *Core
 	}{
 		{
 			name: "test",

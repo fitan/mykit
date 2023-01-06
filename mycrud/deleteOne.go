@@ -8,42 +8,48 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) DeleteOneHandler() {
-	c.Handler(DeleteOneMethodName, http.MethodDelete, "/{tableName}/{id}", c.DeleteOneEndpoint(), c.DeleteOneDecode())
+type DeleteOneImpl interface {
+	DeleteOneHandler()
+	DeleteOneDecode() kithttp.DecodeRequestFunc
+	DeleteOneEndpoint() endpoint.Endpoint
+	DeleteOne(ctx context.Context, id string) (err error)
+}
+
+type DeleteOne struct {
+	Crud     *Core
+	TableMsg *tableMsg
+}
+
+func (d *DeleteOne) DeleteOneHandler() {
+	d.Crud.Handler(DeleteOneMethodName, http.MethodDelete, "/"+d.TableMsg.schema.Table+"/{id}", d.DeleteOneEndpoint(), d.DeleteOneDecode())
 }
 
 type DeleteOneRequest struct {
-	TableName string `json:"tableName"`
-	Id        string `json:"id"`
+	Id string `json:"id"`
 }
 
-func (c *CRUD) DeleteOneDecode() kithttp.DecodeRequestFunc {
+func (d *DeleteOne) DeleteOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := DeleteOneRequest{}
 		v := mux.Vars(r)
-		req.TableName = v["tableName"]
 		req.Id = v["id"]
 		return req, nil
 	}
 }
 
-func (c *CRUD) DeleteOneEndpoint() endpoint.Endpoint {
+func (d *DeleteOne) DeleteOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(DeleteOneRequest)
-		err = c.DeleteOne(ctx, req.TableName, req.Id)
-		return c.endpointWrap(nil, err)
+		err = d.DeleteOne(ctx, req.Id)
+		return nil, err
 	}
 }
 
-func (c *CRUD) DeleteOne(ctx context.Context, tableName, id string) (err error) {
-	msg, err := c.tableMsg(tableName)
-	if err != nil {
-		return
-	}
+func (d *DeleteOne) DeleteOne(ctx context.Context, id string) (err error) {
 
-	db, commit := c.db.Tx(ctx)
+	db, commit := d.Crud.db.Tx(ctx)
 	defer commit(err)
 
-	err = db.Model(msg.oneObjFn()).Where("id = ?", id).Delete(msg.oneObjFn()).Error
+	err = db.Model(d.TableMsg.oneObjFn()).Where("id = ?", id).Delete(d.TableMsg.oneObjFn()).Error
 	return
 }

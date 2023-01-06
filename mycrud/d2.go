@@ -16,7 +16,7 @@ import (
 	"strings"
 )
 
-func (c *CRUD) D2Handler(m *mux.Router) {
+func (c *Core) D2Handler(m *mux.Router) {
 	m.HandleFunc("/d2/tables", func(writer http.ResponseWriter, request *http.Request) {
 		var ss []schema.Schema
 		for _, v := range c.tables {

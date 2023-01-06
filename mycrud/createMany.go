@@ -5,13 +5,24 @@ import (
 	"encoding/json"
 	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
-	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"net/http"
 )
 
-func (c *CRUD) CreateManyHandler() {
-	c.Handler(CreateManyMethodName, http.MethodPost, "/{tableName}/many", c.CreateManyEndpoint(), c.CreateManyDecode())
+type CreateManyImpl interface {
+	CreateManyHandler()
+	CreateManyDecode() kithttp.DecodeRequestFunc
+	CreateManyEndpoint() endpoint.Endpoint
+	CreateMany(ctx context.Context, data interface{}) (err error)
+}
+
+type CreateMany struct {
+	Crud     *Core
+	TableMsg *tableMsg
+}
+
+func (c *CreateMany) CreateManyHandler() {
+	c.Crud.Handler(CreateManyMethodName, http.MethodPost, "/"+c.TableMsg.schema.Table+"/many", c.CreateManyEndpoint(), c.CreateManyDecode())
 }
 
 type CreateManyRequest struct {
@@ -19,17 +30,11 @@ type CreateManyRequest struct {
 	Body      interface{}
 }
 
-func (c *CRUD) CreateManyDecode() kithttp.DecodeRequestFunc {
+func (c *CreateMany) CreateManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := CreateManyRequest{}
-		v := mux.Vars(r)
-		req.TableName = v["tableName"]
-		msg, err := c.tableMsg(req.TableName)
-		if err != nil {
-			return
-		}
 
-		body := msg.manyObjFn()
+		body := c.TableMsg.manyObjFn()
 		err = json.NewDecoder(r.Body).Decode(body)
 		if err != nil {
 			return
@@ -40,26 +45,22 @@ func (c *CRUD) CreateManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) CreateManyEndpoint() endpoint.Endpoint {
+func (c *CreateMany) CreateManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(CreateManyRequest)
-		err = c.CreateMany(ctx, req.TableName, req.Body)
-		return c.endpointWrap(nil, err)
+		err = c.CreateMany(ctx, req.Body)
+		return nil, err
 	}
 }
 
-func (c *CRUD) CreateMany(ctx context.Context, tableName string, data interface{}) (err error) {
-	_, err = c.tableMsg(tableName)
-	if err != nil {
-		return
-	}
+func (c *CreateMany) CreateMany(ctx context.Context, data interface{}) (err error) {
 
-	db, commit := c.db.Tx(ctx)
+	db, commit := c.Crud.db.Tx(ctx)
 	defer commit(err)
 
-	err = db.Table(tableName).CreateInBatches(data, 20).Error
+	err = db.Model(c.TableMsg.oneObjFn()).CreateInBatches(data, 20).Error
 	if err != nil {
-		err = errors.Wrap(err, "db.Table(tableName).Create(data).Error")
+		err = errors.Wrap(err, "db.CreateInBatches")
 		return
 	}
 	return

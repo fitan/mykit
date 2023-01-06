@@ -8,42 +8,52 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) GetOneHandler() {
-	c.Handler(GetOneMethodName, http.MethodGet, "/{tableName}/{id}", c.GetOneEndpoint(), c.GetOneDecode())
+type GetOneImpl interface {
+	GetOneHandler()
+	GetOneDecode() kithttp.DecodeRequestFunc
+	GetOneEndpoint() endpoint.Endpoint
+	GetOne(ctx context.Context, tableName, id string) (data interface{}, err error)
+}
+
+type GetOne struct {
+	Crud       *Core
+	TableMsg   *tableMsg
+	MethodName string
+	HttpMethod string
+	HttpPath   string
+	Serializer func(i interface{}) interface{}
+}
+
+func (g *GetOne) GetOneHandler() {
+	g.Crud.Handler(GetOneMethodName, http.MethodGet, "/"+g.TableMsg.schema.Table+"/{id}", g.GetOneEndpoint(), g.GetOneDecode())
 }
 
 type GetOneRequest struct {
-	TableName string `json:"table_name"`
-	Id        string `json:"id"`
+	Id string `json:"id"`
 }
 
-func (c *CRUD) GetOneDecode() kithttp.DecodeRequestFunc {
+func (g *GetOne) GetOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetOneRequest{}
 		v := mux.Vars(r)
-		req.TableName = v["tableName"]
 		req.Id = v["id"]
 		return req, nil
 	}
 }
 
-func (c *CRUD) GetOneEndpoint() endpoint.Endpoint {
+func (g *GetOne) GetOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetOneRequest)
-		res, err := c.GetOne(ctx, req.TableName, req.Id)
+		res, err := g.GetOne(ctx, req.Id)
 		return res, err
 	}
 }
 
-func (c *CRUD) GetOne(ctx context.Context, tableName, id string) (data interface{}, err error) {
-	msg, err := c.tableMsg(tableName)
-	if err != nil {
-		return
-	}
+func (g *GetOne) GetOne(ctx context.Context, id string) (data interface{}, err error) {
 
-	db := c.db.Db(ctx)
+	db := g.Crud.db.Db(ctx)
 
-	obj := msg.oneObjFn()
-	err = db.Model(msg.oneObjFn()).Where("id = ?", id).First(obj).Error
+	obj := g.TableMsg.oneObjFn()
+	err = db.Model(g.TableMsg.oneObjFn()).Where("id = ?", id).First(obj).Error
 	return obj, err
 }

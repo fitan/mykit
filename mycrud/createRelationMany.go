@@ -8,13 +8,26 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"gorm.io/gorm"
 	"net/http"
 	"reflect"
 	"strconv"
 )
 
-func (c *CRUD) CreateRelationManyHandler() {
-	c.Handler(CreateManyMethodName, http.MethodPost, "/{tableName}/{id}/{relationTableName}/many", c.CreateRelationManyEndpoint(), c.CreateRelationManyDecode())
+type CreateRelationManyImpl interface {
+	CreateRelationManyHandler()
+	CreateRelationManyDecode() kithttp.DecodeRequestFunc
+	CreateRelationManyEndpoint() endpoint.Endpoint
+	CreateRelationMany(ctx context.Context, id, relationTableName string, body interface{}) (err error)
+}
+
+type CreateRelationMany struct {
+	Crud     *Core
+	TableMsg *tableMsg
+}
+
+func (c *CreateRelationMany) CreateRelationManyHandler() {
+	c.Crud.Handler(CreateManyMethodName, http.MethodPost, "/"+c.TableMsg.schema.Table+"/{id}/{relationTableName}/many", c.CreateRelationManyEndpoint(), c.CreateRelationManyDecode())
 }
 
 type CreatRelationManyRequest struct {
@@ -24,18 +37,14 @@ type CreatRelationManyRequest struct {
 	Body              interface{} `json:"body"`
 }
 
-func (c *CRUD) CreateRelationManyDecode() kithttp.DecodeRequestFunc {
+func (c *CreateRelationMany) CreateRelationManyDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := CreatRelationManyRequest{}
 		v := mux.Vars(r)
 		req.TableName = v["tableName"]
 		req.Id = v["id"]
 		req.RelationTableName = v["relationTableName"]
-		msg, err := c.tableMsg(req.RelationTableName)
-		if err != nil {
-			return
-		}
-		req.Body = msg.manyObjFn()
+		req.Body = c.TableMsg.manyObjFn()
 		err = json.NewDecoder(r.Body).Decode(&req.Body)
 		if err != nil {
 			err = errors.Wrap(err, "json.Decode")
@@ -45,19 +54,20 @@ func (c *CRUD) CreateRelationManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (c *CRUD) CreateRelationManyEndpoint() endpoint.Endpoint {
+func (c *CreateRelationMany) CreateRelationManyEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(CreatRelationManyRequest)
-		err = c.CreateRelationMany(ctx, req.TableName, req.Id, req.RelationTableName, req.Body)
-		return c.endpointWrap(nil, err)
+		err = c.CreateRelationMany(ctx, req.Id, req.RelationTableName, req.Body)
+		return nil, err
 	}
 }
 
-func (c *CRUD) CreateRelationMany(ctx context.Context, tableName, id, relationTableName string, body interface{}) (err error) {
-	msg, err := c.tableMsg(tableName)
-	if err != nil {
-		return
-	}
+func (c *CreateRelationMany) CreateRelationMany(ctx context.Context, id, relationTableName string, body interface{}) (err error) {
+	db := c.Crud.db.Db(ctx)
+	return CreateRelationManyService(ctx, db, c.tableMsg, id, relationTableName, body)
+}
+
+func CreateRelationManyService(ctx context.Context, db *gorm.DB, msg *tableMsg, id, relationTableName string, body interface{}) (err error) {
 
 	var hasRelation bool
 	var relationFieldName string
@@ -70,7 +80,7 @@ func (c *CRUD) CreateRelationMany(ctx context.Context, tableName, id, relationTa
 	}
 
 	if !hasRelation {
-		err = fmt.Errorf("table %s has no relation with table %s", tableName, relationTableName)
+		err = fmt.Errorf("table %s has no relation with table %s", msg.schema.Table, relationTableName)
 		return
 	}
 
@@ -107,7 +117,7 @@ func (c *CRUD) CreateRelationMany(ctx context.Context, tableName, id, relationTa
 	model := msg.oneObjFn()
 	reflect.ValueOf(model).Elem().FieldByName("ID").Set(reflect.ValueOf(gormID))
 
-	err = c.db.Db(ctx).Model(model).Association(relationFieldName).Append(body)
+	err = db.Model(model).Association(relationFieldName).Append(body)
 	if err != nil {
 		err = errors.Wrap(err, "db.Append")
 		return

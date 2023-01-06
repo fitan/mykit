@@ -12,37 +12,47 @@ import (
 	"net/http"
 )
 
-func (c *CRUD) GetRelationOneHandler() {
-	c.Handler(GetOneMethodName, http.MethodGet, "/{tableName}/{id}/{relationTableName}", c.GetRelationOneEndpoint(), c.GetRelationOneDecode())
+type GetRelationOneImpl interface {
+	GetRelationOneHandler()
+	GetRelationOneDecode() kithttp.DecodeRequestFunc
+	GetRelationOneEndpoint() endpoint.Endpoint
+	GetRelationOne(ctx context.Context, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data interface{}, err error)
+}
+
+type GetRelationOne struct {
+	Crud     *Core
+	TableMsg *tableMsg
+}
+
+func (g *GetRelationOne) GetRelationOneHandler() {
+	g.Crud.Handler(GetOneMethodName, http.MethodGet, "/"+g.TableMsg.schema.Table+"/{id}/{relationTableName}", g.GetRelationOneEndpoint(), g.GetRelationOneDecode())
 }
 
 type GetRelationOneRequest struct {
-	TableName         string `json:"tableName"`
 	Id                string `json:"id"`
 	RelationTableName string `json:"RelationTableName"`
 }
 
-func (c *CRUD) GetRelationOneDecode() kithttp.DecodeRequestFunc {
+func (g *GetRelationOne) GetRelationOneDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetRelationOneRequest{}
 		v := mux.Vars(r)
-		req.TableName = v["tableName"]
 		req.Id = v["id"]
 		req.RelationTableName = v["relationTableName"]
 		return req, nil
 	}
 }
 
-func (c *CRUD) GetRelationOneEndpoint() endpoint.Endpoint {
+func (g *GetRelationOne) GetRelationOneEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetRelationOneRequest)
-		res, err := c.GetRelationOne(ctx, req.TableName, req.Id, req.RelationTableName, nil)
+		res, err := g.GetRelationOne(ctx, req.Id, req.RelationTableName, nil)
 		return res, err
 	}
 }
 
-func (c *CRUD) GetRelationOne(ctx context.Context, tableName, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data interface{}, err error) {
-	relationTableNameMsg, err := c.tableMsg(relationTableName)
+func (g *GetRelationOne) GetRelationOne(ctx context.Context, id, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data interface{}, err error) {
+	relationTableNameMsg, err := g.Crud.tableMsg(relationTableName)
 	if err != nil {
 		return
 	}
@@ -52,9 +62,9 @@ func (c *CRUD) GetRelationOne(ctx context.Context, tableName, id, relationTableN
 	var hasRelation bool
 
 	for _, v := range relationTableNameMsg.schema.Relationships.Relations {
-		if v.FieldSchema.Table == tableName {
+		if v.FieldSchema.Table == g.TableMsg.schema.Table {
 			relation = *v
-			_, err = c.tableMsg(relationTableName)
+			_, err = g.Crud.tableMsg(relationTableName)
 			if err != nil {
 				return
 			}
@@ -69,7 +79,7 @@ func (c *CRUD) GetRelationOne(ctx context.Context, tableName, id, relationTableN
 	}
 
 	if len(relation.References) == 0 {
-		err = fmt.Errorf("not found reference: %s", tableName)
+		err = fmt.Errorf("not found reference: %s", g.TableMsg.schema.Table)
 		return
 	}
 
@@ -78,8 +88,8 @@ func (c *CRUD) GetRelationOne(ctx context.Context, tableName, id, relationTableN
 
 	data = relationTableNameMsg.oneObjFn()
 
-	db := c.db.Db(ctx)
-	db.Model(relationTableNameMsg.oneObjFn()).Where(relationPrimaryKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(tableName).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).First(data)
+	db := g.Crud.db.Db(ctx)
+	db.Model(relationTableNameMsg.oneObjFn()).Where(relationPrimaryKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(g.TableMsg.schema.Table).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).First(data)
 
 	return data, nil
 }
