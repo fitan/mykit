@@ -8,27 +8,16 @@ import (
 	"strings"
 )
 
-type DeleteManyImpl interface {
-	DeleteManyHandler()
-	DeleteManyDecode() kithttp.DecodeRequestFunc
-	DeleteManyEndpoint() endpoint.Endpoint
-	DeleteMany(ctx context.Context, ids []string) (err error)
-}
-
 type DeleteManyRequest struct {
 	Ids []string `json:"ids"`
 }
 
 type DeleteMany struct {
-	Crud     *Core
-	TableMsg *tableMsg
+	Repo *Repo
+	*KitHttpConfig
 }
 
-func (d *DeleteMany) DeleteManyHandler() {
-	d.Crud.Handler(DeleteManyMethodName, http.MethodDelete, "/{tableName}", d.DeleteManyEndpoint(), d.DeleteManyDecode())
-}
-
-func (d *DeleteMany) DeleteManyDecode() kithttp.DecodeRequestFunc {
+func (d *DeleteMany) GetDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := DeleteManyRequest{}
 		ids := r.URL.Query().Get("ids")
@@ -37,19 +26,10 @@ func (d *DeleteMany) DeleteManyDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (d *DeleteMany) DeleteManyEndpoint() endpoint.Endpoint {
+func (d *DeleteMany) GetEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(DeleteManyRequest)
-		err = d.DeleteMany(ctx, req.Ids)
+		err = d.Repo.DeleteMany(ctx, req.Ids)
 		return nil, err
 	}
-}
-
-func (d *DeleteMany) DeleteMany(ctx context.Context, ids []string) (err error) {
-
-	db, commit := d.Crud.db.Tx(ctx)
-	defer commit(err)
-
-	err = db.Model(d.TableMsg.oneObjFn()).Where("id in (?)", ids).Delete(d.TableMsg.oneObjFn()).Error
-	return
 }

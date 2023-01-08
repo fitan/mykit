@@ -1,68 +1,115 @@
 package mycrud
 
-type CrudService struct {
-	GetOne     GetOneImpl
-	GetMany    GetManyImpl
-	CreateOne  CreateOneImpl
-	CreateMany CreateManyImpl
-	UpdateOne  UpdateOneImpl
-	UpdateMany UpdateManyImpl
-	DeleteOne  DeleteOneImpl
-	DeleteMany DeleteManyImpl
+import (
+	"github.com/go-kit/kit/endpoint"
+	kithttp "github.com/go-kit/kit/transport/http"
+)
 
-	GetRelationOne  GetRelationOneImpl
-	GetRelationMany GetRelationManyImpl
-
-	CreateRelationOne  CreateRelationOneImpl
-	CreateRelationMany CreateRelationManyImpl
+type KitHttpImpl interface {
+	KitHttpBaseImpl
+	GetDecode() kithttp.DecodeRequestFunc
+	GetEndpoint() endpoint.Endpoint
 }
 
-func (c *CrudService) Handler() {
-	if c.GetOne != nil {
-		c.GetOne.GetOneHandler()
-	}
-	if c.GetMany != nil {
-		c.GetMany.GetManyHandler()
-	}
-
-	if c.CreateOne != nil {
-		c.CreateOne.CreateOneHandler()
-	}
-
-	if c.CreateMany != nil {
-		c.CreateMany.CreateManyHandler()
-	}
-
-	if c.UpdateOne != nil {
-		c.UpdateOne.UpdateOneHandler()
-	}
-
-	if c.UpdateMany != nil {
-		c.UpdateMany.UpdateManyHandler()
-	}
-
-	if c.DeleteOne != nil {
-		c.DeleteOne.DeleteOneHandler()
-	}
-
-	if c.DeleteMany != nil {
-		c.DeleteMany.DeleteManyHandler()
-	}
-
-	if c.GetRelationOne != nil {
-		c.GetRelationOne.GetRelationOneHandler()
-	}
-
-	if c.GetRelationMany != nil {
-		c.GetRelationMany.GetRelationManyHandler()
-	}
-
-	if c.CreateRelationOne != nil {
-		c.CreateRelationOne.CreateRelationOneHandler()
-	}
-
-	if c.CreateRelationMany != nil {
-		c.CreateRelationMany.CreateRelationManyHandler()
-	}
-
+type KitHttpBaseImpl interface {
+	GetName() string
+	GetHttpMethod() string
+	GetEncode() kithttp.EncodeResponseFunc
+	GetOptions() []kithttp.ServerOption
+	GetHttpPath() string
 }
+
+type KitHttpConfig struct {
+	Name       string
+	HttpMethod string
+	HttpPath   string
+	Encode     kithttp.EncodeResponseFunc
+	Options    []kithttp.ServerOption
+}
+
+func (c *KitHttpConfig) GetHttpPath() string {
+	return c.HttpPath
+}
+
+func (c *KitHttpConfig) GetName() string {
+	return c.Name
+}
+
+func (c *KitHttpConfig) GetHttpMethod() string {
+	return c.HttpMethod
+}
+
+func (c *KitHttpConfig) GetEncode() kithttp.EncodeResponseFunc {
+	return c.Encode
+}
+
+func (c *KitHttpConfig) GetOptions() []kithttp.ServerOption {
+	return c.Options
+}
+
+//type CrudService struct {
+//	GetOne     KitHttpImpl
+//	GetMany    KitHttpImpl
+//	CreateOne  KitHttpImpl
+//	CreateMany KitHttpImpl
+//	UpdateOne  KitHttpImpl
+//	UpdateMany KitHttpImpl
+//	DeleteOne  KitHttpImpl
+//	DeleteMany KitHttpImpl
+//
+//	GetRelationOne  KitHttpImpl
+//	GetRelationMany KitHttpImpl
+//
+//	CreateRelationOne  KitHttpImpl
+//	CreateRelationMany KitHttpImpl
+//}
+//
+//func (c *CrudService) Handler() {
+//	if c.GetOne != nil {
+//		c.GetOne.Handler()
+//	}
+//	if c.GetMany != nil {
+//		c.GetMany.Handler()
+//	}
+//
+//	if c.CreateOne != nil {
+//		c.CreateOne.Handler()
+//	}
+//
+//	if c.CreateMany != nil {
+//		c.CreateMany.Handler()
+//	}
+//
+//	if c.UpdateOne != nil {
+//		c.UpdateOne.Handler()
+//	}
+//
+//	if c.UpdateMany != nil {
+//		c.UpdateMany.Handler()
+//	}
+//
+//	if c.DeleteOne != nil {
+//		c.DeleteOne.DeleteOneHandler()
+//	}
+//
+//	if c.DeleteMany != nil {
+//		c.DeleteMany.Handler()
+//	}
+//
+//	if c.GetRelationOne != nil {
+//		c.GetRelationOne.Handler()
+//	}
+//
+//	if c.GetRelationMany != nil {
+//		c.GetRelationMany.Handler()
+//	}
+//
+//	if c.CreateRelationOne != nil {
+//		c.CreateRelationOne.Handler()
+//	}
+//
+//	if c.CreateRelationMany != nil {
+//		c.CreateRelationMany.Handler()
+//	}
+//
+//}

@@ -45,13 +45,13 @@ func TestNewCRUD(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				crud := NewCRUD(tt.args.m, tt.args.db, tt.args.encode, nil)
+				crud := NewCore(tt.args.m, tt.args.db, tt.args.encode, nil)
 				userReg, err := crud.RegisterTable(
 					func() interface{} {
 						return &ormdata.User{}
 					}, func() interface{} {
 						return &[]ormdata.User{}
-					})
+					}, NewCrud)
 				if err != nil {
 					panic(err)
 				}
@@ -60,7 +60,7 @@ func TestNewCRUD(t *testing.T) {
 						return &ormdata.Todo{}
 					}, func() interface{} {
 						return &[]ormdata.Todo{}
-					})
+					}, NewCrud)
 				if err != nil {
 					panic(err)
 				}
@@ -71,6 +71,7 @@ func TestNewCRUD(t *testing.T) {
 					func() interface{} {
 						return &[]ormdata.Post{}
 					},
+					NewCrud,
 				)
 				if err != nil {
 					panic(err)
@@ -82,6 +83,7 @@ func TestNewCRUD(t *testing.T) {
 					func() interface{} {
 						return &[]ormdata.Photo{}
 					},
+					NewCrud,
 				)
 				if err != nil {
 					panic(err)
@@ -94,6 +96,7 @@ func TestNewCRUD(t *testing.T) {
 					func() interface{} {
 						return &[]ormdata.Comment{}
 					},
+					NewCrud,
 				)
 				if err != nil {
 					panic(err)
@@ -105,6 +108,7 @@ func TestNewCRUD(t *testing.T) {
 					func() interface{} {
 						return &[]ormdata.Album{}
 					},
+					NewCrud,
 				)
 				if err != nil {
 					panic(err)
@@ -138,8 +142,8 @@ func TestNewCRUD(t *testing.T) {
 				//	data.List = result
 				//	return data
 				//})
+				crud.Run()
 
-				crud.run()
 				crud.D2Handler(crud.m)
 				log.Println("crud run")
 				r.Run(":8080")

@@ -3,10 +3,8 @@ package mycrud
 import (
 	"context"
 	"fmt"
-	"github.com/fitan/mykit/myctx"
 	"github.com/fitan/mykit/mygorm"
 	"github.com/fitan/mykit/myhttp"
-	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -17,26 +15,28 @@ import (
 )
 
 const (
-	GetOneMethodName         = "GetOne"
-	GetManyMethodName        = "GetMany"
-	CreateOneMethodName      = "CreateOne"
-	CreateManyMethodName     = "CreateMany"
-	UpdateOneMethodName      = "UpdateOne"
-	UpdateManyMethodName     = "UpdateMany"
-	DeleteOneMethodName      = "DeleteOne"
-	DeleteManyMethodName     = "DeleteMany"
-	MethodMethodName         = "Method"
-	RelationMethodMethodName = "RelationMethod"
+	GetOneMethodName             = "GetOne"
+	GetManyMethodName            = "GetMany"
+	CreateOneMethodName          = "CreateOne"
+	CreateManyMethodName         = "CreateMany"
+	UpdateOneMethodName          = "UpdateOne"
+	UpdateManyMethodName         = "UpdateMany"
+	DeleteOneMethodName          = "DeleteOne"
+	DeleteManyMethodName         = "DeleteMany"
+	RelationGetOneMethodName     = "RelationGetOne"
+	RelationGetManyMethodName    = "RelationGetMany"
+	RelationCreateOneMethodName  = "RelationCreateOne"
+	RelationCreateManyMethodName = "RelationCreateMany"
 )
 
 type Core struct {
-	tables       map[string]*tableMsg
-	m            *mux.Router
-	db           *mygorm.DB
-	enc          kithttp.EncodeResponseFunc
-	endpointWrap func(response interface{}, err error) (interface{}, error)
-	options      []kithttp.ServerOption
-	permissions  Permissions
+	tables      map[string]*tableMsg
+	handlers    map[string][]func(core *Core, msg *tableMsg)
+	m           *mux.Router
+	db          *mygorm.DB
+	enc         kithttp.EncodeResponseFunc
+	options     []kithttp.ServerOption
+	permissions Permissions
 }
 
 type Permissions func(ctx context.Context, tableName string, methodName string) (bool, error)
@@ -62,15 +62,15 @@ type Permissions func(ctx context.Context, tableName string, methodName string) 
 //	options       []kithttp.ServerOption
 //}
 
-func NewCRUD(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc, opts []kithttp.ServerOption) *Core {
+func NewCore(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc, opts []kithttp.ServerOption) *Core {
 	enc := myhttp.EncodeJSONResponse
 	if encode != nil {
 		enc = encode
 	}
-	crud := &Core{m: m, tables: map[string]*tableMsg{}, db: mygorm.New(db), enc: enc, endpointWrap: myhttp.WrapResponse, options: make([]kithttp.ServerOption, 0)}
-	crud.options = append(crud.options, myhttp.KitErrorEncoder())
-	crud.options = append(crud.options, opts...)
-	return crud
+	core := &Core{m: m, tables: map[string]*tableMsg{}, handlers: map[string][]func(core *Core, msg *tableMsg){}, db: mygorm.New(db), enc: enc, options: make([]kithttp.ServerOption, 0)}
+	core.options = append(core.options, myhttp.KitErrorEncoder())
+	core.options = append(core.options, opts...)
+	return core
 }
 
 func (c *Core) kitDtoEncodeJsonResponse(dto func(i interface{}) interface{}) kithttp.EncodeResponseFunc {
@@ -82,7 +82,7 @@ func (c *Core) kitDtoEncodeJsonResponse(dto func(i interface{}) interface{}) kit
 	}
 }
 
-func (c *Core) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}) (*tableMsg, error) {
+func (c *Core) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}, regs ...func(core *Core, tableMsg *tableMsg)) (*tableMsg, error) {
 	tSchema, err := schema.Parse(oneObjFn(), &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
 		return nil, errors.Wrap(err, "schema.Parse")
@@ -96,57 +96,17 @@ func (c *Core) RegisterTable(oneObjFn func() interface{}, manyObjFn func() inter
 		optionsMap: map[string][]kithttp.ServerOption{},
 	}
 
-	t.Option(GetManyMethodName, c.KitGormScopesBefore())
-
 	c.tables[tSchema.Table] = t
+	c.handlers[tSchema.Table] = regs
 	return c.tables[tSchema.Table], nil
 }
 
-//func (c *Core) RegisterMethod(tableName string) *RegisterMethodHelper {
-//	return &RegisterMethodHelper{crud: c, tableName: tableName}
-//}
-
-//func (c *Core) runMethod() {
-//	c.m.HandleFunc("/{tableName}/method/{methodName}", func(writer http.ResponseWriter, request *http.Request) {
-//		v := mux.Vars(request)
-//		tableName := v["tableName"]
-//		methodName := v["methodName"]
-//		msg, err := c.tableMsg(tableName)
-//		if err != nil {
-//			myhttp.ResponseJsonEncode(writer, map[string]interface{}{"err": err.Error()})
-//			return
-//		}
-//
-//		methodMsg,ok := msg.methodMap[methodName]
-//		if !ok {
-//			myhttp.ResponseJsonEncode(writer, map[string]interface{}{"err": fmt.Sprintf("not found method %s", methodName)})
-//			return
-//		}
-//
-//		if methodMsg.createOneHas {
-//			kithttp.NewServer(c.createOneEndpoint(), c.createOneDecode(),
-//				func(ctx context.Context, writer http.ResponseWriter, i interface{}) error {
-//					methodMsg.createOne(ctx, )
-//				})
-//		}
-//
-//
-//	}
-//}
-
-func (c *Core) run() {
-	c.GetOneHandler()
-	c.GetManyHandler()
-	c.GetRelationOneHandler()
-	c.GetRelationManyHandler()
-	c.UpdateOneHandler()
-	c.UpdateManyHandler()
-	c.CreateOneHandler()
-	c.CreateManyHandler()
-	c.CreateRelationManyHandler()
-	c.CreateRelationOneHandler()
-	c.DeleteOneHandler()
-	c.DeleteManyHandler()
+func (c *Core) Run() {
+	for tableName, tableMsg := range c.tables {
+		for _, reg := range c.handlers[tableName] {
+			reg(c, tableMsg)
+		}
+	}
 }
 
 func (c *Core) tableMsg(tableName string) (*tableMsg, error) {
@@ -157,80 +117,325 @@ func (c *Core) tableMsg(tableName string) (*tableMsg, error) {
 	return msg, nil
 }
 
-func (c *Core) KitGormScopesBefore() kithttp.ServerOption {
+func (c *Core) KitGormScopesBefore(tableMsg *tableMsg) kithttp.ServerOption {
 	return kithttp.ServerBefore(func(ctx context.Context, request *http.Request) context.Context {
-
-		tableName, ok := mux.Vars(request)["tableName"]
-		if !ok {
-			return ctx
-		}
-
-		msg, err := c.tableMsg(tableName)
-		if err != nil {
-			return context.WithValue(ctx, myctx.CtxGormScopesKey, mygorm.CtxGormScopesValue{
-				Err: err,
-			})
-		}
-
-		relationTableName, ok := mux.Vars(request)["relationTableName"]
-		if ok {
-			var err error
-			msg, err = c.tableMsg(relationTableName)
-			if err != nil {
-				return context.WithValue(ctx, myctx.CtxGormScopesKey, mygorm.CtxGormScopesValue{
-					Err: err,
-				})
-			}
-		}
-
-		return mygorm.SetScopesToCtx(ctx, request, msg.schema)
+		return mygorm.SetScopesToCtx(ctx, request, tableMsg.schema)
 	})
 }
 
-func (c *Core) Handler(methodName, httpMethod string, path string, e endpoint.Endpoint, dec kithttp.DecodeRequestFunc, opts ...kithttp.ServerOption) {
-	c.m.HandleFunc("/crud"+path, func(writer http.ResponseWriter, request *http.Request) {
-		vars := mux.Vars(request)
-		tableName := vars["tableName"]
-		msg, err := c.tableMsg(tableName)
-		if err != nil {
-			myhttp.ResponseJsonEncode(writer, myhttp.Response{Error: err.Error(), Code: 500})
-			return
-		}
-
-		relationTableName, ok := vars["relationTableName"]
-		if ok {
-			msg, err = c.tableMsg(relationTableName)
-			if err != nil {
-				myhttp.ResponseJsonEncode(writer, myhttp.Response{Error: err.Error(), Code: 500})
-			}
-		}
-
-		enc := c.kitDtoEncodeJsonResponse(msg.dtoMap[methodName])
-
-		o := append(c.options, msg.optionsMap[methodName]...)
-		o = append(o, opts...)
-
-		kithttp.NewServer(e, dec, enc, o...).ServeHTTP(writer, request)
-	}).Methods(httpMethod).Name(methodName)
-
+func (c *Core) RegHandler(impl KitHttpImpl) {
+	enc := impl.GetEncode()
+	if enc == nil {
+		enc = c.enc
+	}
+	opts := c.options
+	opts = append(opts, impl.GetOptions()...)
+	c.m.Name(impl.GetName()).Methods(impl.GetHttpMethod()).Path(impl.GetHttpPath()).Handler(kithttp.NewServer(
+		impl.GetEndpoint(),
+		impl.GetDecode(),
+		enc,
+		opts...,
+	))
 }
 
-func NewCrudService(crud *Core, tableMsg *tableMsg) {
-	CrudService{
-		GetOne: &GetOne{
-			Crud:     crud,
-			TableMsg: tableMsg,
-		},
-		GetMany:            nil,
-		CreateOne:          nil,
-		CreateMany:         nil,
-		UpdateOne:          nil,
-		UpdateMany:         nil,
-		DeleteOne:          nil,
-		DeleteMany:         nil,
-		GetRelationOne:     nil,
-		GetRelationMany:    nil,
-		CreateRelationOne:  nil,
-		CreateRelationMany: nil,
+func NewCrud(core *Core, tableMsg *tableMsg) {
+	core.RegHandler(NewGetOne(core, tableMsg))
+	core.RegHandler(NewGetMany(core, tableMsg))
+
+	core.RegHandler(NewUpdateOne(core, tableMsg))
+	core.RegHandler(NewUpdateMany(core, tableMsg))
+
+	core.RegHandler(NewCreateOne(core, tableMsg))
+	core.RegHandler(NewCreateMany(core, tableMsg))
+
+	core.RegHandler(NewDeleteOne(core, tableMsg))
+	core.RegHandler(NewDeleteMany(core, tableMsg))
+
+	for _, impl := range NewGetRelationOne(core, tableMsg) {
+		core.RegHandler(impl)
 	}
+
+	for _, impl := range NewGetRelationMany(core, tableMsg) {
+		core.RegHandler(impl)
+	}
+
+	for _, impl := range NewCreateRelationOne(core, tableMsg) {
+		core.RegHandler(impl)
+	}
+
+	for _, impl := range NewCreateRelationMany(core, tableMsg) {
+		core.RegHandler(impl)
+	}
+}
+
+func NewRepo(core *Core, msg *tableMsg, relationTableMsg *tableMsg) *Repo {
+	return &Repo{
+		Core:             core,
+		TableMsg:         msg,
+		RelationTableMsg: relationTableMsg,
+	}
+}
+
+func NewGetOne(core *Core, tableMsg *tableMsg) *GetOne {
+	return &GetOne{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + GetOneMethodName,
+			HttpMethod: http.MethodGet,
+			HttpPath:   fmt.Sprintf("/%s/{id}", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    nil,
+		},
+	}
+}
+
+func NewGetMany(core *Core, tableMsg *tableMsg) *GetMany {
+	return &GetMany{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + GetManyMethodName,
+			HttpMethod: http.MethodGet,
+			HttpPath:   fmt.Sprintf("/%s", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    []kithttp.ServerOption{core.KitGormScopesBefore(tableMsg)},
+		},
+	}
+}
+
+func NewCreateOne(core *Core, tableMsg *tableMsg) *CreateOne {
+	return &CreateOne{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + CreateOneMethodName,
+			HttpMethod: http.MethodPost,
+			HttpPath:   fmt.Sprintf("/%s", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    nil,
+		},
+	}
+}
+
+func NewCreateMany(core *Core, tableMsg *tableMsg) *CreateMany {
+	return &CreateMany{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + CreateManyMethodName,
+			HttpMethod: http.MethodPost,
+			HttpPath:   fmt.Sprintf("/%s/batch", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    nil,
+		},
+	}
+}
+
+func NewUpdateOne(core *Core, tableMsg *tableMsg) *UpdateOne {
+	return &UpdateOne{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + UpdateOneMethodName,
+			HttpMethod: http.MethodPut,
+			HttpPath:   fmt.Sprintf("/%s/{id}", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    nil,
+		},
+	}
+}
+
+func NewUpdateMany(core *Core, tableMsg *tableMsg) *UpdateMany {
+	return &UpdateMany{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + UpdateManyMethodName,
+			HttpMethod: http.MethodPut,
+			HttpPath:   fmt.Sprintf("/%s/batch", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    nil,
+		},
+	}
+}
+
+func NewDeleteOne(core *Core, tableMsg *tableMsg) *DeleteOne {
+	return &DeleteOne{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + DeleteOneMethodName,
+			HttpMethod: http.MethodDelete,
+			HttpPath:   fmt.Sprintf("/%s/{id}", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    nil,
+		},
+	}
+}
+
+func NewDeleteMany(core *Core, tableMsg *tableMsg) *DeleteMany {
+	return &DeleteMany{
+		Repo: NewRepo(core, tableMsg, nil),
+		KitHttpConfig: &KitHttpConfig{
+			Name:       tableMsg.schema.Table + DeleteManyMethodName,
+			HttpMethod: http.MethodDelete,
+			HttpPath:   fmt.Sprintf("/%s/batch", tableMsg.schema.Table),
+			Encode:     nil,
+			Options:    nil,
+		},
+	}
+}
+
+func NewGetRelationOne(core *Core, msg *tableMsg) (res []*GetRelationOne) {
+	for _, v := range msg.schema.Relationships.HasOne {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &GetRelationOne{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + GetOneMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodGet,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+				Encode:     nil,
+				Options:    nil,
+			},
+		})
+	}
+
+	for _, v := range msg.schema.Relationships.BelongsTo {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &GetRelationOne{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + GetOneMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodGet,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+				Encode:     nil,
+				Options:    nil,
+			},
+		})
+	}
+	return
+}
+
+func NewGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
+	for _, v := range msg.schema.Relationships.HasMany {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &GetRelationMany{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + GetManyMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodGet,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+				Encode:     nil,
+				Options:    []kithttp.ServerOption{core.KitGormScopesBefore(relationTable)},
+			},
+		})
+	}
+
+	for _, v := range msg.schema.Relationships.Many2Many {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &GetRelationMany{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + GetManyMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodGet,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+				Encode:     nil,
+				Options:    []kithttp.ServerOption{core.KitGormScopesBefore(relationTable)},
+			},
+		})
+	}
+	return
+}
+
+func NewCreateRelationOne(core *Core, msg *tableMsg) (res []*CreateRelationOne) {
+	for _, v := range msg.schema.Relationships.HasOne {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &CreateRelationOne{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + CreateOneMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodPost,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+				Encode:     nil,
+				Options:    nil,
+			},
+		})
+	}
+
+	for _, v := range msg.schema.Relationships.BelongsTo {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &CreateRelationOne{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + CreateOneMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodPost,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+				Encode:     nil,
+				Options:    nil,
+			},
+		})
+	}
+	return
+}
+
+func NewCreateRelationMany(core *Core, msg *tableMsg) (res []*CreateRelationMany) {
+	for _, v := range msg.schema.Relationships.HasMany {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &CreateRelationMany{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + CreateManyMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodPost,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+			},
+		})
+	}
+
+	for _, v := range msg.schema.Relationships.Many2Many {
+		relationTableName := v.FieldSchema.Table
+		relationTable, err := core.tableMsg(relationTableName)
+		if err != nil {
+			panic(err)
+		}
+
+		res = append(res, &CreateRelationMany{
+			Repo: NewRepo(core, msg, relationTable),
+			KitHttpConfig: &KitHttpConfig{
+				Name:       relationTableName + CreateManyMethodName + "By" + msg.schema.Table,
+				HttpMethod: http.MethodPost,
+				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
+			},
+		})
+	}
+	return
 }

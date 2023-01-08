@@ -6,7 +6,9 @@ import (
 )
 
 func New() *gorm.DB {
-	dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
+	//dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "root:123456@tcp(172.29.107.199:3306)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
+
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{
 		DisableForeignKeyConstraintWhenMigrating: true,
 	})

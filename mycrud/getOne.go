@@ -16,23 +16,15 @@ type GetOneImpl interface {
 }
 
 type GetOne struct {
-	Crud       *Core
-	TableMsg   *tableMsg
-	MethodName string
-	HttpMethod string
-	HttpPath   string
-	Serializer func(i interface{}) interface{}
-}
-
-func (g *GetOne) GetOneHandler() {
-	g.Crud.Handler(GetOneMethodName, http.MethodGet, "/"+g.TableMsg.schema.Table+"/{id}", g.GetOneEndpoint(), g.GetOneDecode())
+	Repo *Repo
+	*KitHttpConfig
 }
 
 type GetOneRequest struct {
 	Id string `json:"id"`
 }
 
-func (g *GetOne) GetOneDecode() kithttp.DecodeRequestFunc {
+func (g *GetOne) GetDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
 		req := GetOneRequest{}
 		v := mux.Vars(r)
@@ -41,19 +33,10 @@ func (g *GetOne) GetOneDecode() kithttp.DecodeRequestFunc {
 	}
 }
 
-func (g *GetOne) GetOneEndpoint() endpoint.Endpoint {
+func (g *GetOne) GetEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetOneRequest)
-		res, err := g.GetOne(ctx, req.Id)
+		res, err := g.Repo.GetOne(ctx, req.Id)
 		return res, err
 	}
-}
-
-func (g *GetOne) GetOne(ctx context.Context, id string) (data interface{}, err error) {
-
-	db := g.Crud.db.Db(ctx)
-
-	obj := g.TableMsg.oneObjFn()
-	err = db.Model(g.TableMsg.oneObjFn()).Where("id = ?", id).First(obj).Error
-	return obj, err
 }

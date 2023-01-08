@@ -72,3 +72,7 @@ type Todo struct {
 	Completed bool   `json:"completed" gorm:"column:completed;notnull;comment:'是否完成'"`
 	User      *User  `json:"user,omitempty" gorm:"foreignKey:UserId;references:ID"`
 }
+
+func (*Todo) Crud() {
+
+}
