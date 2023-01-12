@@ -32,9 +32,9 @@ type RepoImpl interface {
 }
 
 type Repo struct {
-	Core             *Core
-	TableMsg         *tableMsg
-	RelationTableMsg *tableMsg
+	Core     *Core
+	TableMsg *TableMsg
+	//RelationTableMsg *GetTableMsg
 }
 
 func (r *Repo) GetOne(ctx context.Context, id string) (data interface{}, err error) {
@@ -155,20 +155,21 @@ func (r *Repo) DeleteMany(ctx context.Context, ids []string) (err error) {
 func (r *Repo) GetRelationOne(
 	ctx context.Context,
 	id string,
+	relationTableName string,
 	scopes []func(db *gorm.DB) *gorm.DB,
 ) (data interface{}, err error) {
-	//relationTableMsg, err := r.Core.tableMsg(relationTableName)
-	//if err != nil {
-	//	return
-	//}
+	relationTableMsg, err := r.Core.GetTableMsg(relationTableName)
+	if err != nil {
+		return
+	}
 
 	var relation schema.Relationship
 	var hasRelation bool
 
-	for _, v := range r.RelationTableMsg.schema.Relationships.Relations {
+	for _, v := range relationTableMsg.schema.Relationships.Relations {
 		if v.FieldSchema.Table == r.TableMsg.schema.Table {
 			relation = *v
-			//_, err = r.Core.tableMsg(relationTableName)
+			//_, err = r.Core.GetTableMsg(relationTableName)
 			//if err != nil {
 			//	return
 			//}
@@ -190,27 +191,27 @@ func (r *Repo) GetRelationOne(
 	relationForeignKey := relation.References[0].ForeignKey.DBName
 	relationPrimaryKey := relation.References[0].PrimaryKey.DBName
 
-	data = r.RelationTableMsg.oneObjFn()
+	data = relationTableMsg.oneObjFn()
 
 	db := r.Core.db.Db(ctx)
-	db.Model(r.RelationTableMsg.oneObjFn()).Where(relationPrimaryKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(r.TableMsg.schema.Table).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).First(data)
+	db.Model(relationTableMsg.oneObjFn()).Where(relationPrimaryKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(r.TableMsg.schema.Table).Select(relationForeignKey).Where(relationForeignKey+" = ?", id)).First(data)
 
 	return data, nil
 }
 
-func (r *Repo) GetRelationMany(ctx context.Context, id string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
-	//relationTableMsg, err := r.Core.tableMsg(relationTableName)
-	//if err != nil {
-	//	return
-	//}
+func (r *Repo) GetRelationMany(ctx context.Context, id string, relationTableName string, scopes []func(db *gorm.DB) *gorm.DB) (data GetManyData, err error) {
+	relationTableMsg, err := r.Core.GetTableMsg(relationTableName)
+	if err != nil {
+		return
+	}
 
 	var relation schema.Relationship
 	var hasRelation bool
 
-	for _, v := range r.RelationTableMsg.schema.Relationships.Relations {
+	for _, v := range relationTableMsg.schema.Relationships.Relations {
 		if v.FieldSchema.Table == r.TableMsg.schema.Table {
 			relation = *v
-			//_, err = r.Core.tableMsg(relationTableName)
+			//_, err = r.Core.GetTableMsg(relationTableName)
 			//if err != nil {
 			//	return
 			//}
@@ -238,19 +239,19 @@ func (r *Repo) GetRelationMany(ctx context.Context, id string, scopes []func(db 
 	if err != nil {
 		return
 	}
-	err = totalDB.Model(r.RelationTableMsg.oneObjFn()).Where(relationForeignKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(r.TableMsg.schema.Table).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
+	err = totalDB.Model(relationTableMsg.oneObjFn()).Where(relationForeignKey+" in (?)", totalDB.Session(&gorm.Session{NewDB: true}).Table(r.TableMsg.schema.Table).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Scopes(scopes...).Count(&total).Error
 	if err != nil {
 		err = errors.Wrap(err, "db.Count")
 		return
 	}
 
-	db := r.Core.db.Db(ctx).Model(r.RelationTableMsg.oneObjFn()).Scopes(scopes...)
+	db := r.Core.db.Db(ctx).Model(relationTableMsg.oneObjFn()).Scopes(scopes...)
 	db, err = mygorm.SetScopes(ctx, db)
 	if err != nil {
 		return
 	}
 
-	list := r.RelationTableMsg.manyObjFn()
+	list := relationTableMsg.manyObjFn()
 
 	db.Where(relationForeignKey+" in (?)", db.Session(&gorm.Session{NewDB: true}).Table(r.TableMsg.schema.Table).Select(relationPrimaryKey).Where(relationPrimaryKey+" = ?", id)).Find(list)
 
@@ -262,35 +263,40 @@ func (r *Repo) GetRelationMany(ctx context.Context, id string, scopes []func(db 
 
 func (r *Repo) CreateRelationOne(
 	ctx context.Context,
-	id string,
+	id, relationTableName string,
 	body interface{},
 ) (err error) {
-	return r.createRelation(ctx, id, body)
+	return r.createRelation(ctx, id, relationTableName, body)
 }
 
 func (r *Repo) CreateRelationMany(
 	ctx context.Context,
-	id string,
+	id, relationTableName string,
 	body interface{},
 ) (err error) {
-	return r.createRelation(ctx, id, body)
+	return r.createRelation(ctx, id, relationTableName, body)
 }
 
-func (r *Repo) createRelation(ctx context.Context, id string, body interface{}) (err error) {
+func (r *Repo) createRelation(ctx context.Context, id string, relationTableName string, body interface{}) (err error) {
+	relationTableMsg, err := r.Core.GetTableMsg(relationTableName)
+	if err != nil {
+		return
+	}
+
 	db := r.Core.db.Db(ctx)
 
 	var hasRelation bool
 	var relationFieldName string
 
 	for k, v := range r.TableMsg.schema.Relationships.Relations {
-		if v.FieldSchema.Table == r.RelationTableMsg.schema.Table {
+		if v.FieldSchema.Table == relationTableMsg.schema.Table {
 			hasRelation = true
 			relationFieldName = k
 		}
 	}
 
 	if !hasRelation {
-		err = fmt.Errorf("table %s has no relation with table %s", r.TableMsg.schema.Table, r.RelationTableMsg.schema.Table)
+		err = fmt.Errorf("table %s has no relation with table %s", r.TableMsg.schema.Table, relationTableMsg.schema.Table)
 		return
 	}
 

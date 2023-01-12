@@ -8,13 +8,6 @@ import (
 	"net/http"
 )
 
-type GetOneImpl interface {
-	GetOneHandler()
-	GetOneDecode() kithttp.DecodeRequestFunc
-	GetOneEndpoint() endpoint.Endpoint
-	GetOne(ctx context.Context, tableName, id string) (data interface{}, err error)
-}
-
 type GetOne struct {
 	Repo *Repo
 	*KitHttpConfig

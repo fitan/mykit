@@ -31,8 +31,8 @@ const (
 )
 
 type Core struct {
-	tables      map[string]*tableMsg
-	handlers    map[string][]func(core *Core, msg *tableMsg)
+	tables      map[string]*TableMsg
+	handlers    map[string][]func(core *Core, msg *TableMsg)
 	m           *mux.Router
 	db          *mygorm.DB
 	enc         kithttp.EncodeResponseFunc
@@ -43,33 +43,12 @@ type Core struct {
 
 type Permissions func(ctx context.Context, tableName string, methodName string) (bool, error)
 
-//type methodMsg struct {
-//	getOneHas     bool
-//	getOne        GetOneActionMethod
-//	getManyHas    bool
-//	GetMany       GetManyActionMethod
-//	updateOneHas  bool
-//	updateOne     UpdateOneActionMethod
-//	updateManyHas bool
-//	updateMany    UpdateManyActionMethod
-//	deleteOneHas  bool
-//	deleteOne     DeleteOneActionMethod
-//	deleteManyHas bool
-//	deleteMany    DeleteManyActionMethod
-//	createOneHas  bool
-//	createOne     CreateOneActionMethod
-//	createManyHas bool
-//	createMany    CreateManyActionMethod
-//	enc           kithttp.EncodeResponseFunc
-//	options       []kithttp.ServerOption
-//}
-
 func NewCore(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc, opts []kithttp.ServerOption) *Core {
 	enc := myhttp.EncodeJSONResponse
 	if encode != nil {
 		enc = encode
 	}
-	core := &Core{m: m, tables: map[string]*tableMsg{}, handlers: map[string][]func(core *Core, msg *tableMsg){}, db: mygorm.New(db), enc: enc, options: make([]kithttp.ServerOption, 0), endpointMid: make([]endpoint.Middleware, 0)}
+	core := &Core{m: m, tables: map[string]*TableMsg{}, handlers: map[string][]func(core *Core, msg *TableMsg){}, db: mygorm.New(db), enc: enc, options: make([]kithttp.ServerOption, 0), endpointMid: make([]endpoint.Middleware, 0)}
 	core.options = append(core.options, myhttp.KitErrorEncoder())
 	core.options = append(core.options, opts...)
 	return core
@@ -84,18 +63,15 @@ func (c *Core) kitDtoEncodeJsonResponse(dto func(i interface{}) interface{}) kit
 	}
 }
 
-func (c *Core) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}, regs ...func(core *Core, tableMsg *tableMsg)) (*tableMsg, error) {
+func (c *Core) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}, regs ...func(core *Core, tableMsg *TableMsg)) (*TableMsg, error) {
 	tSchema, err := schema.Parse(oneObjFn(), &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
 		return nil, errors.Wrap(err, "schema.Parse")
 	}
-	t := &tableMsg{
-		oneObjFn:   oneObjFn,
-		manyObjFn:  manyObjFn,
-		schema:     *tSchema,
-		encMap:     map[string]kithttp.EncodeResponseFunc{},
-		dtoMap:     map[string]func(i interface{}) interface{}{},
-		optionsMap: map[string][]kithttp.ServerOption{},
+	t := &TableMsg{
+		oneObjFn:  oneObjFn,
+		manyObjFn: manyObjFn,
+		schema:    *tSchema,
 	}
 
 	c.tables[tSchema.Table] = t
@@ -111,7 +87,7 @@ func (c *Core) Run() {
 	}
 }
 
-func (c *Core) tableMsg(tableName string) (*tableMsg, error) {
+func (c *Core) GetTableMsg(tableName string) (*TableMsg, error) {
 	msg, ok := c.tables[tableName]
 	if !ok {
 		return msg, fmt.Errorf("not found table %s", tableName)
@@ -119,7 +95,7 @@ func (c *Core) tableMsg(tableName string) (*tableMsg, error) {
 	return msg, nil
 }
 
-func (c *Core) KitGormScopesBefore(tableMsg *tableMsg) kithttp.ServerOption {
+func (c *Core) KitGormScopesBefore(tableMsg *TableMsg) kithttp.ServerOption {
 	return kithttp.ServerBefore(func(ctx context.Context, request *http.Request) context.Context {
 		return mygorm.SetScopesToCtx(ctx, request, tableMsg.schema)
 	})
@@ -151,7 +127,7 @@ func (c *Core) RegHandler(impl KitHttpImpl) {
 	))
 }
 
-func NewCrud(core *Core, tableMsg *tableMsg) {
+func NewCrud(core *Core, tableMsg *TableMsg) {
 	core.RegHandler(NewGetOne(core, tableMsg))
 	core.RegHandler(NewGetMany(core, tableMsg))
 
@@ -181,14 +157,14 @@ func NewCrud(core *Core, tableMsg *tableMsg) {
 	}
 }
 
-func NewRepo(core *Core, msg *tableMsg) *Repo {
+func NewRepo(core *Core, msg *TableMsg) *Repo {
 	return &Repo{
 		Core:     core,
 		TableMsg: msg,
 	}
 }
 
-func NewGetOne(core *Core, tableMsg *tableMsg) *GetOne {
+func NewGetOne(core *Core, tableMsg *TableMsg) *GetOne {
 	return &GetOne{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -201,7 +177,7 @@ func NewGetOne(core *Core, tableMsg *tableMsg) *GetOne {
 	}
 }
 
-func NewGetMany(core *Core, tableMsg *tableMsg) *GetMany {
+func NewGetMany(core *Core, tableMsg *TableMsg) *GetMany {
 	return &GetMany{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -214,7 +190,7 @@ func NewGetMany(core *Core, tableMsg *tableMsg) *GetMany {
 	}
 }
 
-func NewCreateOne(core *Core, tableMsg *tableMsg) *CreateOne {
+func NewCreateOne(core *Core, tableMsg *TableMsg) *CreateOne {
 	return &CreateOne{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -227,7 +203,7 @@ func NewCreateOne(core *Core, tableMsg *tableMsg) *CreateOne {
 	}
 }
 
-func NewCreateMany(core *Core, tableMsg *tableMsg) *CreateMany {
+func NewCreateMany(core *Core, tableMsg *TableMsg) *CreateMany {
 	return &CreateMany{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -240,7 +216,7 @@ func NewCreateMany(core *Core, tableMsg *tableMsg) *CreateMany {
 	}
 }
 
-func NewUpdateOne(core *Core, tableMsg *tableMsg) *UpdateOne {
+func NewUpdateOne(core *Core, tableMsg *TableMsg) *UpdateOne {
 	return &UpdateOne{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -253,7 +229,7 @@ func NewUpdateOne(core *Core, tableMsg *tableMsg) *UpdateOne {
 	}
 }
 
-func NewUpdateMany(core *Core, tableMsg *tableMsg) *UpdateMany {
+func NewUpdateMany(core *Core, tableMsg *TableMsg) *UpdateMany {
 	return &UpdateMany{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -266,7 +242,7 @@ func NewUpdateMany(core *Core, tableMsg *tableMsg) *UpdateMany {
 	}
 }
 
-func NewDeleteOne(core *Core, tableMsg *tableMsg) *DeleteOne {
+func NewDeleteOne(core *Core, tableMsg *TableMsg) *DeleteOne {
 	return &DeleteOne{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -279,7 +255,7 @@ func NewDeleteOne(core *Core, tableMsg *tableMsg) *DeleteOne {
 	}
 }
 
-func NewDeleteMany(core *Core, tableMsg *tableMsg) *DeleteMany {
+func NewDeleteMany(core *Core, tableMsg *TableMsg) *DeleteMany {
 	return &DeleteMany{
 		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
@@ -292,7 +268,7 @@ func NewDeleteMany(core *Core, tableMsg *tableMsg) *DeleteMany {
 	}
 }
 
-func newGetRelationOne(core *Core, msg *tableMsg) (res []*GetRelationOne) {
+func newGetRelationOne(core *Core, msg *TableMsg) (res []*GetRelationOne) {
 	for _, v := range msg.schema.Relationships.HasOne {
 		relationTableName := v.FieldSchema.Table
 
@@ -327,10 +303,10 @@ func newGetRelationOne(core *Core, msg *tableMsg) (res []*GetRelationOne) {
 	return
 }
 
-func newGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
+func newGetRelationMany(core *Core, msg *TableMsg) (res []*GetRelationMany) {
 	for _, v := range msg.schema.Relationships.HasMany {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
+		relationTable, err := core.GetTableMsg(relationTableName)
 		if err != nil {
 			panic(err)
 		}
@@ -350,7 +326,7 @@ func newGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
 
 	for _, v := range msg.schema.Relationships.Many2Many {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
+		relationTable, err := core.GetTableMsg(relationTableName)
 		if err != nil {
 			panic(err)
 		}
@@ -370,7 +346,7 @@ func newGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
 	return
 }
 
-func newCreateRelationOne(core *Core, msg *tableMsg) (res []*CreateRelationOne) {
+func newCreateRelationOne(core *Core, msg *TableMsg) (res []*CreateRelationOne) {
 	for _, v := range msg.schema.Relationships.HasOne {
 		relationTableName := v.FieldSchema.Table
 
@@ -405,7 +381,7 @@ func newCreateRelationOne(core *Core, msg *tableMsg) (res []*CreateRelationOne) 
 	return
 }
 
-func newCreateRelationMany(core *Core, msg *tableMsg) (res []*CreateRelationMany) {
+func newCreateRelationMany(core *Core, msg *TableMsg) (res []*CreateRelationMany) {
 	for _, v := range msg.schema.Relationships.HasMany {
 		relationTableName := v.FieldSchema.Table
 

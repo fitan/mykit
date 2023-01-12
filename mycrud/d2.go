@@ -30,7 +30,7 @@ func (c *Core) D2Handler(m *mux.Router) {
 	m.HandleFunc("/d2/tables/{tableName}", func(writer http.ResponseWriter, request *http.Request) {
 		vars := mux.Vars(request)
 		tableName := vars["tableName"]
-		msg, err := c.tableMsg(tableName)
+		msg, err := c.GetTableMsg(tableName)
 		if err != nil {
 			writer.Write([]byte(err.Error()))
 			return

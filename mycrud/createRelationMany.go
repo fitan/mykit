@@ -27,7 +27,7 @@ type CreatRelationManyRequest struct {
 
 func (c *CreateRelationMany) GetDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
-		relationTableMsg, err := c.Repo.Core.tableMsg(c.RelationTableName)
+		relationTableMsg, err := c.Repo.Core.GetTableMsg(c.RelationTableName)
 		if err != nil {
 			return nil, err
 		}

@@ -20,10 +20,6 @@ type KitHttpBaseImpl interface {
 	GetEndpointMid() []endpoint.Middleware
 }
 
-type DtoEndpointMidImpl interface {
-	DtoEndpointMid() endpoint.Middleware
-}
-
 type KitHttpConfig struct {
 	Name        string
 	HttpMethod  string
