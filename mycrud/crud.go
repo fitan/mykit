@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/fitan/mykit/mygorm"
 	"github.com/fitan/mykit/myhttp"
+	"github.com/go-kit/kit/endpoint"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -36,6 +37,7 @@ type Core struct {
 	db          *mygorm.DB
 	enc         kithttp.EncodeResponseFunc
 	options     []kithttp.ServerOption
+	endpointMid []endpoint.Middleware
 	permissions Permissions
 }
 
@@ -67,7 +69,7 @@ func NewCore(m *mux.Router, db *gorm.DB, encode kithttp.EncodeResponseFunc, opts
 	if encode != nil {
 		enc = encode
 	}
-	core := &Core{m: m, tables: map[string]*tableMsg{}, handlers: map[string][]func(core *Core, msg *tableMsg){}, db: mygorm.New(db), enc: enc, options: make([]kithttp.ServerOption, 0)}
+	core := &Core{m: m, tables: map[string]*tableMsg{}, handlers: map[string][]func(core *Core, msg *tableMsg){}, db: mygorm.New(db), enc: enc, options: make([]kithttp.ServerOption, 0), endpointMid: make([]endpoint.Middleware, 0)}
 	core.options = append(core.options, myhttp.KitErrorEncoder())
 	core.options = append(core.options, opts...)
 	return core
@@ -124,14 +126,25 @@ func (c *Core) KitGormScopesBefore(tableMsg *tableMsg) kithttp.ServerOption {
 }
 
 func (c *Core) RegHandler(impl KitHttpImpl) {
+	e := impl.GetEndpoint()
+
+	for _, mid := range impl.GetEndpointMid() {
+		e = mid(e)
+	}
+
+	for _, mid := range c.endpointMid {
+		e = mid(e)
+	}
+
 	enc := impl.GetEncode()
 	if enc == nil {
 		enc = c.enc
 	}
+
 	opts := c.options
 	opts = append(opts, impl.GetOptions()...)
 	c.m.Name(impl.GetName()).Methods(impl.GetHttpMethod()).Path(impl.GetHttpPath()).Handler(kithttp.NewServer(
-		impl.GetEndpoint(),
+		e,
 		impl.GetDecode(),
 		enc,
 		opts...,
@@ -151,34 +164,33 @@ func NewCrud(core *Core, tableMsg *tableMsg) {
 	core.RegHandler(NewDeleteOne(core, tableMsg))
 	core.RegHandler(NewDeleteMany(core, tableMsg))
 
-	for _, impl := range NewGetRelationOne(core, tableMsg) {
+	for _, impl := range newGetRelationOne(core, tableMsg) {
 		core.RegHandler(impl)
 	}
 
-	for _, impl := range NewGetRelationMany(core, tableMsg) {
+	for _, impl := range newGetRelationMany(core, tableMsg) {
 		core.RegHandler(impl)
 	}
 
-	for _, impl := range NewCreateRelationOne(core, tableMsg) {
+	for _, impl := range newCreateRelationOne(core, tableMsg) {
 		core.RegHandler(impl)
 	}
 
-	for _, impl := range NewCreateRelationMany(core, tableMsg) {
+	for _, impl := range newCreateRelationMany(core, tableMsg) {
 		core.RegHandler(impl)
 	}
 }
 
-func NewRepo(core *Core, msg *tableMsg, relationTableMsg *tableMsg) *Repo {
+func NewRepo(core *Core, msg *tableMsg) *Repo {
 	return &Repo{
-		Core:             core,
-		TableMsg:         msg,
-		RelationTableMsg: relationTableMsg,
+		Core:     core,
+		TableMsg: msg,
 	}
 }
 
 func NewGetOne(core *Core, tableMsg *tableMsg) *GetOne {
 	return &GetOne{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + GetOneMethodName,
 			HttpMethod: http.MethodGet,
@@ -191,7 +203,7 @@ func NewGetOne(core *Core, tableMsg *tableMsg) *GetOne {
 
 func NewGetMany(core *Core, tableMsg *tableMsg) *GetMany {
 	return &GetMany{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + GetManyMethodName,
 			HttpMethod: http.MethodGet,
@@ -204,7 +216,7 @@ func NewGetMany(core *Core, tableMsg *tableMsg) *GetMany {
 
 func NewCreateOne(core *Core, tableMsg *tableMsg) *CreateOne {
 	return &CreateOne{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + CreateOneMethodName,
 			HttpMethod: http.MethodPost,
@@ -217,7 +229,7 @@ func NewCreateOne(core *Core, tableMsg *tableMsg) *CreateOne {
 
 func NewCreateMany(core *Core, tableMsg *tableMsg) *CreateMany {
 	return &CreateMany{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + CreateManyMethodName,
 			HttpMethod: http.MethodPost,
@@ -230,7 +242,7 @@ func NewCreateMany(core *Core, tableMsg *tableMsg) *CreateMany {
 
 func NewUpdateOne(core *Core, tableMsg *tableMsg) *UpdateOne {
 	return &UpdateOne{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + UpdateOneMethodName,
 			HttpMethod: http.MethodPut,
@@ -243,7 +255,7 @@ func NewUpdateOne(core *Core, tableMsg *tableMsg) *UpdateOne {
 
 func NewUpdateMany(core *Core, tableMsg *tableMsg) *UpdateMany {
 	return &UpdateMany{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + UpdateManyMethodName,
 			HttpMethod: http.MethodPut,
@@ -256,7 +268,7 @@ func NewUpdateMany(core *Core, tableMsg *tableMsg) *UpdateMany {
 
 func NewDeleteOne(core *Core, tableMsg *tableMsg) *DeleteOne {
 	return &DeleteOne{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + DeleteOneMethodName,
 			HttpMethod: http.MethodDelete,
@@ -269,7 +281,7 @@ func NewDeleteOne(core *Core, tableMsg *tableMsg) *DeleteOne {
 
 func NewDeleteMany(core *Core, tableMsg *tableMsg) *DeleteMany {
 	return &DeleteMany{
-		Repo: NewRepo(core, tableMsg, nil),
+		Repo: NewRepo(core, tableMsg),
 		KitHttpConfig: &KitHttpConfig{
 			Name:       tableMsg.schema.Table + DeleteManyMethodName,
 			HttpMethod: http.MethodDelete,
@@ -280,16 +292,12 @@ func NewDeleteMany(core *Core, tableMsg *tableMsg) *DeleteMany {
 	}
 }
 
-func NewGetRelationOne(core *Core, msg *tableMsg) (res []*GetRelationOne) {
+func newGetRelationOne(core *Core, msg *tableMsg) (res []*GetRelationOne) {
 	for _, v := range msg.schema.Relationships.HasOne {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
-		if err != nil {
-			panic(err)
-		}
 
 		res = append(res, &GetRelationOne{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + GetOneMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodGet,
@@ -297,18 +305,15 @@ func NewGetRelationOne(core *Core, msg *tableMsg) (res []*GetRelationOne) {
 				Encode:     nil,
 				Options:    nil,
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 
 	for _, v := range msg.schema.Relationships.BelongsTo {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
-		if err != nil {
-			panic(err)
-		}
 
 		res = append(res, &GetRelationOne{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + GetOneMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodGet,
@@ -316,12 +321,13 @@ func NewGetRelationOne(core *Core, msg *tableMsg) (res []*GetRelationOne) {
 				Encode:     nil,
 				Options:    nil,
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 	return
 }
 
-func NewGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
+func newGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
 	for _, v := range msg.schema.Relationships.HasMany {
 		relationTableName := v.FieldSchema.Table
 		relationTable, err := core.tableMsg(relationTableName)
@@ -330,7 +336,7 @@ func NewGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
 		}
 
 		res = append(res, &GetRelationMany{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + GetManyMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodGet,
@@ -338,6 +344,7 @@ func NewGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
 				Encode:     nil,
 				Options:    []kithttp.ServerOption{core.KitGormScopesBefore(relationTable)},
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 
@@ -349,7 +356,7 @@ func NewGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
 		}
 
 		res = append(res, &GetRelationMany{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + GetManyMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodGet,
@@ -357,21 +364,18 @@ func NewGetRelationMany(core *Core, msg *tableMsg) (res []*GetRelationMany) {
 				Encode:     nil,
 				Options:    []kithttp.ServerOption{core.KitGormScopesBefore(relationTable)},
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 	return
 }
 
-func NewCreateRelationOne(core *Core, msg *tableMsg) (res []*CreateRelationOne) {
+func newCreateRelationOne(core *Core, msg *tableMsg) (res []*CreateRelationOne) {
 	for _, v := range msg.schema.Relationships.HasOne {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
-		if err != nil {
-			panic(err)
-		}
 
 		res = append(res, &CreateRelationOne{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + CreateOneMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodPost,
@@ -379,18 +383,15 @@ func NewCreateRelationOne(core *Core, msg *tableMsg) (res []*CreateRelationOne) 
 				Encode:     nil,
 				Options:    nil,
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 
 	for _, v := range msg.schema.Relationships.BelongsTo {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
-		if err != nil {
-			panic(err)
-		}
 
 		res = append(res, &CreateRelationOne{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + CreateOneMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodPost,
@@ -398,43 +399,38 @@ func NewCreateRelationOne(core *Core, msg *tableMsg) (res []*CreateRelationOne) 
 				Encode:     nil,
 				Options:    nil,
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 	return
 }
 
-func NewCreateRelationMany(core *Core, msg *tableMsg) (res []*CreateRelationMany) {
+func newCreateRelationMany(core *Core, msg *tableMsg) (res []*CreateRelationMany) {
 	for _, v := range msg.schema.Relationships.HasMany {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
-		if err != nil {
-			panic(err)
-		}
 
 		res = append(res, &CreateRelationMany{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + CreateManyMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodPost,
 				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 
 	for _, v := range msg.schema.Relationships.Many2Many {
 		relationTableName := v.FieldSchema.Table
-		relationTable, err := core.tableMsg(relationTableName)
-		if err != nil {
-			panic(err)
-		}
 
 		res = append(res, &CreateRelationMany{
-			Repo: NewRepo(core, msg, relationTable),
+			Repo: NewRepo(core, msg),
 			KitHttpConfig: &KitHttpConfig{
 				Name:       relationTableName + CreateManyMethodName + "By" + msg.schema.Table,
 				HttpMethod: http.MethodPost,
 				HttpPath:   fmt.Sprintf("/%s/{id}/%s", msg.schema.Table, relationTableName),
 			},
+			RelationTableName: relationTableName,
 		})
 	}
 	return

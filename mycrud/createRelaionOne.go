@@ -13,6 +13,11 @@ import (
 type CreateRelationOne struct {
 	Repo *Repo
 	*KitHttpConfig
+	RelationTableName string
+}
+
+func NewCreateRelationOne(repo *Repo, kitHttpConfig *KitHttpConfig, relationTableName string) *CreateRelationOne {
+	return &CreateRelationOne{Repo: repo, KitHttpConfig: kitHttpConfig, RelationTableName: relationTableName}
 }
 
 type CreateRelationOneRequest struct {
@@ -22,10 +27,15 @@ type CreateRelationOneRequest struct {
 
 func (c *CreateRelationOne) GetDecode() kithttp.DecodeRequestFunc {
 	return func(ctx context.Context, r *http.Request) (request interface{}, err error) {
+		relationTableMsg, err := c.Repo.Core.tableMsg(c.RelationTableName)
+		if err != nil {
+			return nil, err
+		}
+
 		req := CreateRelationOneRequest{}
 		v := mux.Vars(r)
 		req.Id = v["id"]
-		req.Body = c.Repo.RelationTableMsg.oneObjFn()
+		req.Body = relationTableMsg.oneObjFn()
 		err = json.NewDecoder(r.Body).Decode(&req.Body)
 		if err != nil {
 			err = errors.Wrap(err, "json.Decode")
@@ -38,7 +48,7 @@ func (c *CreateRelationOne) GetDecode() kithttp.DecodeRequestFunc {
 func (c *CreateRelationOne) GetEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(CreateRelationOneRequest)
-		err = c.Repo.CreateRelationOne(ctx, req.Id, req.Body)
+		err = c.Repo.CreateRelationOne(ctx, req.Id, c.RelationTableName, req.Body)
 		return nil, err
 	}
 }

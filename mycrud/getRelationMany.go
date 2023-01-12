@@ -18,6 +18,11 @@ type GetRelationManyImpl interface {
 type GetRelationMany struct {
 	Repo *Repo
 	*KitHttpConfig
+	RelationTableName string
+}
+
+func NewGetRelationMany(repo *Repo, kitHttpConfig *KitHttpConfig, relationTableName string) *GetRelationMany {
+	return &GetRelationMany{Repo: repo, KitHttpConfig: kitHttpConfig, RelationTableName: relationTableName}
 }
 
 type GetRelationManyRequest struct {
@@ -36,7 +41,7 @@ func (g *GetRelationMany) GetDecode() kithttp.DecodeRequestFunc {
 func (g *GetRelationMany) GetEndpoint() endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(GetRelationManyRequest)
-		res, err := g.Repo.GetRelationMany(ctx, req.Id, nil)
+		res, err := g.Repo.GetRelationMany(ctx, req.Id, g.RelationTableName, nil)
 		return res, err
 	}
 }

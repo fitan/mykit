@@ -17,14 +17,20 @@ type KitHttpBaseImpl interface {
 	GetEncode() kithttp.EncodeResponseFunc
 	GetOptions() []kithttp.ServerOption
 	GetHttpPath() string
+	GetEndpointMid() []endpoint.Middleware
+}
+
+type DtoEndpointMidImpl interface {
+	DtoEndpointMid() endpoint.Middleware
 }
 
 type KitHttpConfig struct {
-	Name       string
-	HttpMethod string
-	HttpPath   string
-	Encode     kithttp.EncodeResponseFunc
-	Options    []kithttp.ServerOption
+	Name        string
+	HttpMethod  string
+	HttpPath    string
+	Encode      kithttp.EncodeResponseFunc
+	Options     []kithttp.ServerOption
+	EndpointMid []endpoint.Middleware
 }
 
 func (c *KitHttpConfig) GetHttpPath() string {
@@ -45,6 +51,10 @@ func (c *KitHttpConfig) GetEncode() kithttp.EncodeResponseFunc {
 
 func (c *KitHttpConfig) GetOptions() []kithttp.ServerOption {
 	return c.Options
+}
+
+func (c *KitHttpConfig) GetEndpointMid() []endpoint.Middleware {
+	return c.EndpointMid
 }
 
 //type CrudService struct {
