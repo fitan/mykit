@@ -1,11 +1,13 @@
 package mygorm
 
 import (
+	"context"
 	"fmt"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 	"net/http"
-	"net/url"
+	"sync"
 	"testing"
 )
 
@@ -65,23 +67,38 @@ func TestScopes(t *testing.T) {
 		panic(err)
 	}
 	db = db.Debug()
-	v := url.Values{}
-	v.Add("q", "Brand.ProductType=服务器")
-	v.Add("q", "UUID=83c63f28970d433597f6caf2696ceab4")
-	v.Add("q", "Brand.Users.Name=张三")
-	v.Add("q", "Brand.ID>10")
-	v.Add("q", "Brand.UUID?=83c63f28970d433597f6caf2696ceab4,83c63f28970d433597f6caf2696ceab5")
-	v.Add("q", "Brand.UUID!?=83c63f28970d433597f6caf2696ceab4,83c63f28970d433597f6caf2696ceab5")
-	v.Add("q", "Brand.CreatedAt<>2021-01-01,2021-01-02")
-	v.Add("_sort", "ID,desc")
-	v.Add("_sort", "UUID,desc")
-	v.Add("_page", "2")
-	v.Add("_pageSize", "10")
-	v.Add("_select", "ID,UUID")
-	//v.Add("q", "Brand.ProductModel=PowerEdge R730xd (SKU=NotProvided;ModelName=PowerEdge R730xd)")
-	v.Encode()
 
-	r, _ := http.NewRequest("GET", "http://localhost:8080?"+v.Encode(), nil)
+	s, _ := schema.Parse(&PhysicalMachine{}, &sync.Map{}, schema.NamingStrategy{})
+
+	r := NewQuery().
+		Q("Brand.ProductType", "=", "服务器").
+		Q("UUID", "=", "83c63f28970d433597f6caf2696ceab4").
+		Q("Brand.Users.Name", "=", "张三").
+		Q("Brand.ID", ">", "10").
+		Q("Brand.UUID", "?=", "83c63f28970d433597f6caf2696ceab4", "83c63f28970d433597f6caf2696ceab5").
+		Q("Brand.UUID", "!?=", "83c63f28970d433597f6caf2696ceab4", "83c63f28970d433597f6caf2696ceab5").
+		Q("Brand.CreatedAt", "<>", "2021-01-01", "2021-01-02").
+		Sort("+ID", "-UUID").
+		Paging("1", "10").
+		NewRequest()
+
+	//v := url.Values{}
+	//v.Add("_q", "Brand.ProductType=服务器")
+	//v.Add("_q", "UUID=83c63f28970d433597f6caf2696ceab4")
+	//v.Add("_q", "Brand.Users.Name=张三")
+	//v.Add("_q", "Brand.ID>10")
+	//v.Add("_q", "Brand.UUID?=83c63f28970d433597f6caf2696ceab4,83c63f28970d433597f6caf2696ceab5")
+	//v.Add("_q", "Brand.UUID!?=83c63f28970d433597f6caf2696ceab4,83c63f28970d433597f6caf2696ceab5")
+	//v.Add("_q", "Brand.CreatedAt<>2021-01-01,2021-01-02")
+	//v.Add("_sort", "ID,desc")
+	//v.Add("_sort", "UUID,desc")
+	//v.Add("_page", "2")
+	//v.Add("_pageSize", "10")
+	//v.Add("_select", "ID,UUID")
+	//v.Add("q", "Brand.ProductModel=PowerEdge R730xd (SKU=NotProvided;ModelName=PowerEdge R730xd)")
+	//v.Encode()
+
+	//r, _ := http.NewRequest("GET", "http://localhost:8080?"+v.Encode(), nil)
 
 	type args struct {
 		r *http.Request
@@ -106,10 +123,7 @@ func TestScopes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(
 			tt.name, func(t *testing.T) {
-				ctx, err := SetScopesToCtx(tt.args.r, tt.args.t)
-				if err != nil {
-					panic(err)
-				}
+				ctx := SetScopesToCtx(context.Background(), r, *s)
 				tmpDB := db.Session(&gorm.Session{DryRun: true})
 				data := make([]PhysicalMachine, 0)
 				tmpDB, err = SetScopes(ctx, tmpDB)
