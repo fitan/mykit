@@ -5,6 +5,38 @@ import (
 	kithttp "github.com/go-kit/kit/transport/http"
 )
 
+type CRUD struct {
+	GetOne  KitHttpImpl
+	GetMany KitHttpImpl
+
+	CreateOne  KitHttpImpl
+	CreateMany KitHttpImpl
+
+	UpdateOne  KitHttpImpl
+	UpdateMany KitHttpImpl
+
+	DeleteOne  KitHttpImpl
+	DeleteMany KitHttpImpl
+
+	Relations map[string]RelationCR
+	Methods   map[string]KitHttpImpl
+}
+
+type RelationCR struct {
+	RelationOneCR
+	RelationManyCR
+}
+
+type RelationOneCR struct {
+	GetOne    KitHttpImpl
+	CreateOne KitHttpImpl
+}
+
+type RelationManyCR struct {
+	GetMany    KitHttpImpl
+	CreateMany KitHttpImpl
+}
+
 type KitHttpImpl interface {
 	KitHttpBaseImpl
 	GetDecode() kithttp.DecodeRequestFunc

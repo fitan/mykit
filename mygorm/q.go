@@ -22,7 +22,7 @@ var ops = map[string]string{
 	"~=":  "like ?",
 	"!~=": "not like ?",
 	"><":  "between ? and ?",
-	"<>":  "not between ? and ?",
+	"!><": "not between ? and ?",
 	//"isnull": "=null",
 	//"notnull": "!=null",
 }

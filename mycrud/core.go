@@ -63,6 +63,65 @@ func (c *Core) kitDtoEncodeJsonResponse(dto func(i interface{}) interface{}) kit
 	}
 }
 
+func (c *Core) RegisterCRUD(oneObjFn func() interface{}, manyObjFn func() interface{}, crud CRUD) (*TableMsg, error) {
+	tSchema, err := schema.Parse(oneObjFn(), &sync.Map{}, schema.NamingStrategy{})
+	if err != nil {
+		return nil, errors.Wrap(err, "schema.Parse")
+	}
+
+	t := &TableMsg{
+		oneObjFn:  oneObjFn,
+		manyObjFn: manyObjFn,
+		schema:    *tSchema,
+	}
+
+	c.tables[tSchema.Table] = t
+	if crud.GetOne != nil {
+		c.RegHandler(crud.GetOne)
+	}
+	if crud.GetMany != nil {
+		c.RegHandler(crud.GetMany)
+	}
+	if crud.CreateOne != nil {
+		c.RegHandler(crud.CreateOne)
+	}
+	if crud.CreateMany != nil {
+		c.RegHandler(crud.CreateMany)
+	}
+	if crud.UpdateOne != nil {
+		c.RegHandler(crud.UpdateOne)
+	}
+	if crud.UpdateMany != nil {
+		c.RegHandler(crud.UpdateMany)
+	}
+	if crud.DeleteOne != nil {
+		c.RegHandler(crud.DeleteOne)
+	}
+	if crud.DeleteMany != nil {
+		c.RegHandler(crud.DeleteMany)
+	}
+	for _, v := range crud.Relations {
+		if v.GetOne != nil {
+			c.RegHandler(v.GetOne)
+		}
+		if v.GetMany != nil {
+			c.RegHandler(v.GetMany)
+		}
+		if v.CreateOne != nil {
+			c.RegHandler(v.CreateOne)
+		}
+		if v.CreateMany != nil {
+			c.RegHandler(v.CreateMany)
+		}
+	}
+
+	for _, v := range crud.Methods {
+		c.RegHandler(v)
+	}
+	return c.tables[tSchema.Table], nil
+
+}
+
 func (c *Core) RegisterTable(oneObjFn func() interface{}, manyObjFn func() interface{}, regs ...func(core *Core, tableMsg *TableMsg)) (*TableMsg, error) {
 	tSchema, err := schema.Parse(oneObjFn(), &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
