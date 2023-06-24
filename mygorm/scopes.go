@@ -3,15 +3,16 @@ package mygorm
 import (
 	"context"
 	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+
 	"github.com/fitan/mykit/myctx"
 	kithttp "github.com/go-kit/kit/transport/http"
 	"github.com/pkg/errors"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
-	"net/http"
-	"strconv"
-	"strings"
-	"sync"
 )
 
 type CtxGormScopesValue struct {
@@ -48,11 +49,11 @@ func SetScopesToCtx(ctx context.Context, r *http.Request, tSchema schema.Schema)
 	}
 	otherScopes = append(otherScopes, sortFn)
 
-	pageFn, err := PagingScope(r)
-	if err != nil {
-		value.Err = errors.Wrap(value.Err, err.Error())
-	}
-	otherScopes = append(otherScopes, pageFn)
+	// pageFn, err := PagingScope(r)
+	// if err != nil {
+	// value.Err = errors.Wrap(value.Err, err.Error())
+	// }
+	// otherScopes = append(otherScopes, pageFn)
 
 	preloadFn, err := PreloadScope(r, tSchema)
 	if err != nil {
@@ -115,7 +116,7 @@ func SetOtherScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
 }
 
 func QScopes(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
-	fns, err = QScope(r, tSchema)
+	fns, err = qScope(r, tSchema)
 	if err != nil {
 		err = errors.Wrap(err, "QScope")
 		return
@@ -219,14 +220,19 @@ func SortScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *go
 			order = "ASC"
 		}
 
-		f, ok := tSchema.FieldsByName[field]
-		if !ok {
-			err = fmt.Errorf("未知的可排序字段: %s", field)
-			return
+		dbField, err := GetField(&tSchema, field)
+		if err != nil {
+			err = errors.Wrap(err, "GetField")
+			return nil, err
 		}
-		dbName := f.DBName
 
-		sortList = append(sortList, dbName+" "+order)
+		// f, ok := tSchema.FieldsByName[field]
+		// if !ok {
+		// err = fmt.Errorf("未知的可排序字段: %s", field)
+		// return
+		// }
+
+		sortList = append(sortList, dbField.DBName+" "+order)
 	}
 	return func(db *gorm.DB) *gorm.DB {
 		for _, v := range sortList {

@@ -2,12 +2,14 @@ package mygorm
 
 import (
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
-	"gorm.io/gorm"
-	"gorm.io/gorm/schema"
 	"net/http"
 	"regexp"
 	"strings"
+
+	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
+	"gorm.io/gorm"
+	"gorm.io/gorm/schema"
 )
 
 var ops = map[string]string{
@@ -27,11 +29,24 @@ var ops = map[string]string{
 	//"notnull": "!=null",
 }
 
-func QScope(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
+func QScopeByModel(r *http.Request, model any) (fns []func(db *gorm.DB) *gorm.DB, err error) {
+	sa, err := GetSchema(model)
+	if err != nil {
+		err = errors.Wrap(err, "GetSchema")
+		return
+	}
+	fmt.Println("sa", sa)
+	return qScope(r, *sa)
+}
+
+func qScope(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
+	fmt.Println("url", r.URL.Query().Encode())
 	qList, ok := r.URL.Query()["_q"]
+	fmt.Println("qList", qList, "ok", ok)
 	if !ok {
 		return
 	}
+	fmt.Println("qList", qList)
 	reg, _ := regexp.Compile(`[!?~=><]+`)
 
 	for _, v := range qList {
@@ -100,18 +115,19 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 	var relationTables []relationTable
 	var tmpSchema *schema.Schema
 	var tmpField *schema.Field
-	var ok bool
 
 	tmpSchema = &tSchema
 
 	// table1.table2.field1
 	fieldList := strings.Split(param.field, ".")
 	for i, v := range fieldList {
+		tmpField, err = GetField(tmpSchema, v)
+		fmt.Println(tmpSchema.FieldsByName)
+		if err != nil {
+			err = fmt.Errorf("not found field: %s", v)
+			return
+		}
 		if len(fieldList)-1 == i {
-			tmpField, ok = tmpSchema.FieldsByName[v]
-			if !ok {
-				err = fmt.Errorf("not found field: %s", v)
-			}
 			break
 		}
 		if tmpSchema == nil {
@@ -119,7 +135,7 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 			return
 		}
 
-		relation, ok := tmpSchema.Relationships.Relations[v]
+		relation, ok := tmpSchema.Relationships.Relations[tmpField.Name]
 		if !ok {
 			err = fmt.Errorf("not found relation: %s", v)
 			return
@@ -141,11 +157,11 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 		//fmt.Println("tmpfieldValue", tmpSchema.FieldsByName[v])
 		//spew.Dump(tmpSchema.FieldsByName[v].Schema)
 		//fmt.Println("tmpfieldValueschema", tmpSchema.FieldsByName[v].Schema)
-		tmpField, ok = tmpSchema.FieldsByName[v]
-		if !ok {
-			err = fmt.Errorf("not found field: %s", v)
-			return
-		}
+		// tmpField, ok = tmpSchema.FieldsByName[v]
+		// if !ok {
+		// 	err = fmt.Errorf("not found field: %s", v)
+		// 	return
+		// }
 		//fmt.Println("tmpfieldvalue", tmpField)
 		//spew.Dump(tmpField)
 		//if !ok {
