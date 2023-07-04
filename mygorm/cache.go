@@ -56,9 +56,8 @@ func (c *Cache) schema(i any) (*schema.Schema, error) {
 }
 
 func (c *Cache) field(sa *schema.Schema, name string) (*schema.Field, error) {
-	fmt.Println("sa", sa.Name, "name", name)
 	c.m.Lock()
-	c.m.Unlock()
+	defer c.m.Unlock()
 	m, ok := c.FieldByJson[sa.ModelType]
 	if !ok {
 		c.FieldByJson[sa.ModelType] = make(map[string]*schema.Field)
@@ -83,7 +82,7 @@ func (c *Cache) fieldByJson(sa *schema.Schema, name string) (*schema.Field, erro
 		j, ok := f.Tag.Lookup("json")
 		if ok && j != "" {
 			jsonName := strings.Split(j, ",")[0]
-			if j == jsonName {
+			if name == jsonName {
 				c.FieldByJson[sa.ModelType][name] = f
 				return f, nil
 			}

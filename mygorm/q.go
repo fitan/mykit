@@ -106,10 +106,11 @@ func (s qParam) localTable() bool {
 }
 
 type relationTable struct {
-	tableName         string
-	relationTableName string
-	foreignKey        string
-	primaryKey        string
+	tableName              string
+	relationTableName      string
+	relationTableModelType reflect.Type
+	foreignKey             string
+	primaryKey             string
 }
 
 func gen(param qParam, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn func(db *gorm.DB) *gorm.DB, err error) {
@@ -122,12 +123,12 @@ func gen(param qParam, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn fun
 	// table1.table2.field1
 	fieldList := strings.Split(param.field, ".")
 	for i, v := range fieldList {
+		tmpField, err = getFieldFunc(tmpSchema, v)
+		if err != nil {
+			err = fmt.Errorf("schema name %s not found field: %s", tmpSchema.Name, v)
+			return
+		}
 		if len(fieldList)-1 == i {
-			tmpField, err = getFieldFunc(tmpSchema, v)
-			if err != nil {
-				err = fmt.Errorf("schema name %s not found field: %s", tmpSchema.Name, v)
-				return
-			}
 			break
 		}
 		if tmpSchema == nil {
@@ -136,11 +137,13 @@ func gen(param qParam, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn fun
 		}
 
 		fmt.Println("v", v, tmpField)
-		fmt.Println(cache)
+		fmt.Println("cache", cache)
+		fmt.Println("tmpSchema", tmpSchema)
+		fmt.Println("relationships", tmpSchema.Relationships)
 		fmt.Println("relations", tmpSchema.Relationships.Relations, v, tmpField.Name)
 		relation, ok := tmpSchema.Relationships.Relations[tmpField.Name]
 		if !ok {
-			err = fmt.Errorf("not found relation: %s", v)
+			err = fmt.Errorf("schema name %s not found relation: %s", tmpSchema, v)
 			return
 		}
 
@@ -150,10 +153,11 @@ func gen(param qParam, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn fun
 		}
 
 		relationTables = append(relationTables, relationTable{
-			tableName:         tmpSchema.Table,
-			relationTableName: relation.FieldSchema.Table,
-			foreignKey:        relation.References[0].ForeignKey.DBName,
-			primaryKey:        relation.References[0].PrimaryKey.DBName,
+			tableName:              tmpSchema.Table,
+			relationTableName:      relation.FieldSchema.Table,
+			relationTableModelType: relation.FieldSchema.ModelType,
+			foreignKey:             relation.References[0].ForeignKey.DBName,
+			primaryKey:             relation.References[0].PrimaryKey.DBName,
 		})
 
 		//fmt.Println("tmpField", tmpSchema.FieldsByName, v)
@@ -187,7 +191,7 @@ func gen(param qParam, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn fun
 		tmpFn := fn
 
 		fn = func(db *gorm.DB) *gorm.DB {
-			value := tmpFn(db.Session(&gorm.Session{NewDB: true}).Table(r.relationTableName)).Select(r.foreignKey)
+			value := tmpFn(db.Session(&gorm.Session{NewDB: true}).Model(reflect.New(r.relationTableModelType).Interface())).Select(r.foreignKey)
 			return db.Where(r.primaryKey+" IN (?)", value)
 		}
 

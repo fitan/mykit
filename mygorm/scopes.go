@@ -44,18 +44,27 @@ func SetScopesToCtx(ctx context.Context, r *http.Request, tSchema schema.Schema)
 
 	otherScopes := make([]func(db *gorm.DB) *gorm.DB, 0)
 	sortFn, err := SortScope(r, tSchema, GetFieldByJson)
+	if sortFn == nil {
+		fmt.Println("sortFn is nil")
+	}
 	if err != nil {
 		value.Err = errors.Wrap(value.Err, err.Error())
 	}
 	otherScopes = append(otherScopes, sortFn)
 
-	// pageFn, err := PagingScope(r)
-	// if err != nil {
-	// value.Err = errors.Wrap(value.Err, err.Error())
-	// }
-	// otherScopes = append(otherScopes, pageFn)
+	pageFn, err := PagingScope(r)
+	if pageFn == nil {
+		fmt.Println("pageFn is nil")
+	}
+	if err != nil {
+		value.Err = errors.Wrap(value.Err, err.Error())
+	}
+	otherScopes = append(otherScopes, pageFn)
 
 	preloadFn, err := PreloadScope(r, tSchema)
+	if preloadFn == nil {
+		fmt.Println("preloadFn is nil")
+	}
 	if err != nil {
 		value.Err = errors.Wrap(value.Err, err.Error())
 	}
@@ -225,7 +234,7 @@ func PreloadScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) 
 }
 
 // 默认创建时间倒序
-func SortScope(r *http.Request, tSchema schema.Schema, getFieldFunc func(sa *schema.Schema, name string) (*schema.Field, error)) (fn func(db *gorm.DB) *gorm.DB, err error) {
+func SortScope(r *http.Request, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn func(db *gorm.DB) *gorm.DB, err error) {
 	o, ok := r.URL.Query()["_sort"]
 	if !ok {
 		return func(db *gorm.DB) *gorm.DB {
@@ -242,7 +251,11 @@ func SortScope(r *http.Request, tSchema schema.Schema, getFieldFunc func(sa *sch
 			field = strings.TrimPrefix(v, "-")
 			order = "DESC"
 		} else {
-			field = v
+			if strings.HasPrefix(v, "+") {
+				field = strings.TrimPrefix(v, "+")
+			} else {
+				field = v
+			}
 			order = "ASC"
 		}
 
@@ -251,12 +264,6 @@ func SortScope(r *http.Request, tSchema schema.Schema, getFieldFunc func(sa *sch
 			err = errors.Wrap(err, "GetField")
 			return nil, err
 		}
-
-		// f, ok := tSchema.FieldsByName[field]
-		// if !ok {
-		// err = fmt.Errorf("未知的可排序字段: %s", field)
-		// return
-		// }
 
 		sortList = append(sortList, dbField.DBName+" "+order)
 	}
