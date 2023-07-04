@@ -1,6 +1,7 @@
 package mygorm
 
 import (
+	"fmt"
 	"github.com/pkg/errors"
 	"gorm.io/gorm/schema"
 	"reflect"
@@ -20,7 +21,17 @@ func GetSchema(i any) (*schema.Schema, error) {
 	return cache.schema(i)
 }
 
-func GetField(sa *schema.Schema, name string) (*schema.Field, error) {
+type GetFieldFunc func(sa *schema.Schema, name string) (*schema.Field, error)
+
+func GetFieldByFieldName(sa *schema.Schema, name string) (*schema.Field, error) {
+	if f, ok := sa.FieldsByName[name]; ok {
+		return f, nil
+	} else {
+		return nil, fmt.Errorf("field %s not found", name)
+	}
+}
+
+func GetFieldByJson(sa *schema.Schema, name string) (*schema.Field, error) {
 	return cache.field(sa, name)
 }
 
@@ -45,6 +56,7 @@ func (c *Cache) schema(i any) (*schema.Schema, error) {
 }
 
 func (c *Cache) field(sa *schema.Schema, name string) (*schema.Field, error) {
+	fmt.Println("sa", sa.Name, "name", name)
 	c.m.Lock()
 	c.m.Unlock()
 	m, ok := c.FieldByJson[sa.ModelType]
@@ -68,7 +80,7 @@ func (c *Cache) field(sa *schema.Schema, name string) (*schema.Field, error) {
 
 func (c *Cache) fieldByJson(sa *schema.Schema, name string) (*schema.Field, error) {
 	for _, f := range sa.FieldsByName {
-		j, ok := f.TagSettings["json"]
+		j, ok := f.Tag.Lookup("json")
 		if ok && j != "" {
 			jsonName := strings.Split(j, ",")[0]
 			if j == jsonName {

@@ -40,10 +40,10 @@ func SetScopesToCtx(ctx context.Context, r *http.Request, tSchema schema.Schema)
 		ctx = r.Context()
 	}
 	value := CtxGormScopesValue{}
-	value.QScopes, value.Err = QScopes(r, tSchema)
+	value.QScopes, value.Err = HttpQScopes(r, tSchema)
 
 	otherScopes := make([]func(db *gorm.DB) *gorm.DB, 0)
-	sortFn, err := SortScope(r, tSchema)
+	sortFn, err := SortScope(r, tSchema, GetFieldByJson)
 	if err != nil {
 		value.Err = errors.Wrap(value.Err, err.Error())
 	}
@@ -115,8 +115,34 @@ func SetOtherScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
 	return db, nil
 }
 
-func QScopes(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
-	fns, err = qScope(r, tSchema)
+type GenxScopesReq struct {
+	Field string
+	Op    string
+	Value interface{}
+}
+
+func GenxScopes(tSchema schema.Schema, req []GenxScopesReq) (fns []func(db *gorm.DB) *gorm.DB, err error) {
+	for _, v := range req {
+		var pq qParam
+		var fn func(db *gorm.DB) *gorm.DB
+		pq, err = genxParseQ(v.Field, v.Op, v.Value)
+		if err != nil {
+			return
+		}
+		fn, err = gen(pq, tSchema, GetFieldByFieldName)
+
+		if err != nil {
+			return
+		}
+
+		fns = append(fns, fn)
+
+	}
+	return
+}
+
+func HttpQScopes(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
+	fns, err = httpQScope(r, tSchema, GetFieldByJson)
 	if err != nil {
 		err = errors.Wrap(err, "QScope")
 		return
@@ -199,7 +225,7 @@ func PreloadScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) 
 }
 
 // 默认创建时间倒序
-func SortScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, err error) {
+func SortScope(r *http.Request, tSchema schema.Schema, getFieldFunc func(sa *schema.Schema, name string) (*schema.Field, error)) (fn func(db *gorm.DB) *gorm.DB, err error) {
 	o, ok := r.URL.Query()["_sort"]
 	if !ok {
 		return func(db *gorm.DB) *gorm.DB {
@@ -220,7 +246,7 @@ func SortScope(r *http.Request, tSchema schema.Schema) (fn func(db *gorm.DB) *go
 			order = "ASC"
 		}
 
-		dbField, err := GetField(&tSchema, field)
+		dbField, err := getFieldFunc(&tSchema, field)
 		if err != nil {
 			err = errors.Wrap(err, "GetField")
 			return nil, err

@@ -3,6 +3,7 @@ package mygorm
 import (
 	"fmt"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -29,36 +30,33 @@ var ops = map[string]string{
 	//"notnull": "!=null",
 }
 
-func QScopeByModel(r *http.Request, model any) (fns []func(db *gorm.DB) *gorm.DB, err error) {
+func QScopeByModel(r *http.Request, model any, getFieldFunc GetFieldFunc) (fns []func(db *gorm.DB) *gorm.DB, err error) {
 	sa, err := GetSchema(model)
 	if err != nil {
 		err = errors.Wrap(err, "GetSchema")
 		return
 	}
 	fmt.Println("sa", sa)
-	return qScope(r, *sa)
+	return httpQScope(r, *sa, getFieldFunc)
 }
 
-func qScope(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
-	fmt.Println("url", r.URL.Query().Encode())
+func httpQScope(r *http.Request, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fns []func(db *gorm.DB) *gorm.DB, err error) {
 	qList, ok := r.URL.Query()["_q"]
-	fmt.Println("qList", qList, "ok", ok)
 	if !ok {
 		return
 	}
-	fmt.Println("qList", qList)
 	reg, _ := regexp.Compile(`[!?~=><]+`)
 
 	for _, v := range qList {
 		var pq qParam
 		var fn func(db *gorm.DB) *gorm.DB
 		op := reg.FindString(v)
-		pq, err = parseQ(v, op)
+		pq, err = httpQueryParseQ(v, op)
 		if err != nil {
 			return
 		}
 
-		fn, err = gen(pq, tSchema)
+		fn, err = gen(pq, tSchema, getFieldFunc)
 		if err != nil {
 			return
 		}
@@ -72,28 +70,31 @@ func qScope(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *go
 type qParam struct {
 	field string
 	op    string
-	value string
+	value []interface{}
 	sqlOp string
 }
 
 func (s qParam) toScope(fieldName string) (res func(db *gorm.DB) *gorm.DB, err error) {
 	switch s.op {
 	case "=", "!=", ">", "<", ">=", "<=", "~=", "!~=":
-		return func(db *gorm.DB) *gorm.DB {
-			return db.Where(fieldName+" "+s.sqlOp, s.value)
-		}, nil
-	case "?=", "!?=":
-		return func(db *gorm.DB) *gorm.DB {
-			return db.Where(fieldName+" "+s.sqlOp, strings.Split(s.value, ","))
-		}, nil
-	case "><", "<>":
-		l := strings.SplitN(s.value, ",", 2)
-		if len(l) != 2 {
+		if len(s.value) != 1 {
 			err = fmt.Errorf("wrong format %s", s.value)
 			return
 		}
 		return func(db *gorm.DB) *gorm.DB {
-			return db.Where(fieldName+" "+s.sqlOp, l[0], l[1])
+			return db.Where(fieldName+" "+s.sqlOp, s.value[0])
+		}, nil
+	case "?=", "!?=":
+		return func(db *gorm.DB) *gorm.DB {
+			return db.Where(fieldName+" "+s.sqlOp, s.value)
+		}, nil
+	case "><", "<>":
+		if len(s.value) != 2 {
+			err = fmt.Errorf("wrong format %s", s.value)
+			return
+		}
+		return func(db *gorm.DB) *gorm.DB {
+			return db.Where(fieldName+" "+s.sqlOp, s.value[0], s.value[1])
 		}, nil
 	default:
 		return nil, fmt.Errorf("toSqlValue not found op: %s", s.op)
@@ -111,7 +112,7 @@ type relationTable struct {
 	primaryKey        string
 }
 
-func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, err error) {
+func gen(param qParam, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn func(db *gorm.DB) *gorm.DB, err error) {
 	var relationTables []relationTable
 	var tmpSchema *schema.Schema
 	var tmpField *schema.Field
@@ -121,13 +122,12 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 	// table1.table2.field1
 	fieldList := strings.Split(param.field, ".")
 	for i, v := range fieldList {
-		tmpField, err = GetField(tmpSchema, v)
-		fmt.Println(tmpSchema.FieldsByName)
-		if err != nil {
-			err = fmt.Errorf("not found field: %s", v)
-			return
-		}
 		if len(fieldList)-1 == i {
+			tmpField, err = getFieldFunc(tmpSchema, v)
+			if err != nil {
+				err = fmt.Errorf("schema name %s not found field: %s", tmpSchema.Name, v)
+				return
+			}
 			break
 		}
 		if tmpSchema == nil {
@@ -135,6 +135,9 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 			return
 		}
 
+		fmt.Println("v", v, tmpField)
+		fmt.Println(cache)
+		fmt.Println("relations", tmpSchema.Relationships.Relations, v, tmpField.Name)
 		relation, ok := tmpSchema.Relationships.Relations[tmpField.Name]
 		if !ok {
 			err = fmt.Errorf("not found relation: %s", v)
@@ -193,7 +196,7 @@ func gen(param qParam, tSchema schema.Schema) (fn func(db *gorm.DB) *gorm.DB, er
 	return
 }
 
-func parseQ(s, op string) (res qParam, err error) {
+func httpQueryParseQ(s, op string) (res qParam, err error) {
 	sqlOp, ok := ops[op]
 	if !ok {
 		err = fmt.Errorf("not found op: %s", op)
@@ -207,7 +210,53 @@ func parseQ(s, op string) (res qParam, err error) {
 
 	res.op = op
 	res.field = l[0]
-	res.value = l[1]
+	value := l[1]
 	res.sqlOp = sqlOp
+
+	switch res.op {
+	case "=", "!=", ">", "<", ">=", "<=", "~=", "!~=":
+		res.value = append(res.value, value)
+	case "?=", "!?=", "><", "<>":
+		values := strings.Split(value, ",")
+		for _, v := range values {
+			res.value = append(res.value, v)
+		}
+	default:
+		err = fmt.Errorf("not found op: %s", op)
+	}
+	return
+}
+
+func genxParseQ(path string, op string, value interface{}) (res qParam, err error) {
+	sqlOp, ok := ops[op]
+	if !ok {
+		err = fmt.Errorf("not found op: %s", op)
+		return
+	}
+
+	res.op = op
+	res.field = path
+	res.sqlOp = sqlOp
+
+	switch res.op {
+	case "=", "!=", ">", "<", ">=", "<=", "~=", "!~=":
+		res.value = append(res.value, value)
+	case "?=", "!?=", "><", "<>":
+		vt := reflect.ValueOf(value)
+		if vt.Type().Kind() == reflect.Ptr {
+			vt = vt.Elem()
+		}
+
+		if vt.Kind() != reflect.Slice {
+			err = fmt.Errorf("wrong format %s", value)
+			return
+		}
+
+		for i := 0; i < vt.Len(); i++ {
+			res.value = append(res.value, vt.Index(i).Interface())
+		}
+	default:
+		err = fmt.Errorf("not found op: %s", op)
+	}
 	return
 }

@@ -9,10 +9,14 @@ import (
 	"net/http"
 	"sync"
 	"testing"
+	"time"
 )
 
 type PhysicalMachine struct {
-	gorm.Model
+	ID        uint `gorm:"primarykey" json:"id"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
 	// uuid
 	UUID string `gorm:"column:uuid;notnull;comment:'uuid'" json:"uuid"`
 	//品牌信息
@@ -60,8 +64,8 @@ func (b *Brand) TableName() string {
 }
 
 func TestScopes(t *testing.T) {
-	dsn := "root:123456@tcp(172.29.107.199:3306)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
-	//dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/spider_dev?charset=utf8mb4&parseTime=True&loc=Local"
+	//dsn := "root:123456@tcp(172.29.107.199:3306)/gteml?charset=utf8mb4&parseTime=True&loc=Local"
+	dsn := "spider_dev:spider_dev123@tcp(10.170.34.22:3307)/spider_dev?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
 		panic(err)
@@ -71,13 +75,13 @@ func TestScopes(t *testing.T) {
 	s, _ := schema.Parse(&PhysicalMachine{}, &sync.Map{}, schema.NamingStrategy{})
 
 	r := NewQuery().
-		Q("Brand.ProductType", "=", "服务器").
-		Q("UUID", "=", "83c63f28970d433597f6caf2696ceab4").
-		Q("Brand.Users.Name", "=", "张三").
-		Q("Brand.ID", ">", "10").
-		Q("Brand.UUID", "?=", "83c63f28970d433597f6caf2696ceab4", "83c63f28970d433597f6caf2696ceab5").
-		Q("Brand.UUID", "!?=", "83c63f28970d433597f6caf2696ceab4", "83c63f28970d433597f6caf2696ceab5").
-		Q("Brand.CreatedAt", "<>", "2021-01-01", "2021-01-02").
+		Q("brand.product_type", "=", "服务器").
+		Q("uuid", "=", "83c63f28970d433597f6caf2696ceab4").
+		Q("brand.users.name", "=", "张三").
+		Q("brand.id", ">", "10").
+		Q("brand.uuid", "?=", "83c63f28970d433597f6caf2696ceab4", "83c63f28970d433597f6caf2696ceab5").
+		Q("brand.uuid", "!?=", "83c63f28970d433597f6caf2696ceab4", "83c63f28970d433597f6caf2696ceab5").
+		Q("brand.created_at", "<>", "2021-01-01", "2021-01-02").
 		Sort("+ID", "-UUID").
 		Paging("1", "10").
 		NewRequest()
