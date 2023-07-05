@@ -191,7 +191,7 @@ func gen(param qParam, tSchema schema.Schema, getFieldFunc GetFieldFunc) (fn fun
 		tmpFn := fn
 
 		fn = func(db *gorm.DB) *gorm.DB {
-			value := tmpFn(db.Session(&gorm.Session{NewDB: true}).Model(reflect.New(r.relationTableModelType).Interface())).Select(r.foreignKey)
+			value := tmpFn(db.Session(&gorm.Session{NewDB: true}).Model(GetModelInterface(r.relationTableModelType))).Select(r.foreignKey)
 			return db.Where(r.primaryKey+" IN (?)", value)
 		}
 

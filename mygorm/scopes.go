@@ -247,6 +247,7 @@ func SortScope(r *http.Request, tSchema schema.Schema, getFieldFunc GetFieldFunc
 	for _, v := range o {
 		var field string
 		var order string
+		fmt.Println("sort v: ", v)
 		if strings.HasPrefix(v, "-") {
 			field = strings.TrimPrefix(v, "-")
 			order = "DESC"
@@ -260,6 +261,7 @@ func SortScope(r *http.Request, tSchema schema.Schema, getFieldFunc GetFieldFunc
 		}
 
 		dbField, err := getFieldFunc(&tSchema, field)
+		fmt.Println("dbField: ", dbField)
 		if err != nil {
 			err = errors.Wrap(err, "GetField")
 			return nil, err

@@ -10,9 +10,10 @@ import (
 )
 
 type Cache struct {
-	SchemaByType map[reflect.Type]*schema.Schema
-	FieldByJson  map[reflect.Type]map[string]*schema.Field
-	m            *sync.Mutex
+	SchemaByType       map[reflect.Type]*schema.Schema
+	FieldByJson        map[reflect.Type]map[string]*schema.Field
+	TypeModelInterface map[reflect.Type]interface{}
+	m                  *sync.Mutex
 }
 
 var cache *Cache
@@ -35,11 +36,28 @@ func GetFieldByJson(sa *schema.Schema, name string) (*schema.Field, error) {
 	return cache.field(sa, name)
 }
 
+func GetModelInterface(p reflect.Type) interface{} {
+	return cache.getModelInterface(p)
+}
+
 func init() {
 	cache = &Cache{
-		SchemaByType: map[reflect.Type]*schema.Schema{},
-		FieldByJson:  map[reflect.Type]map[string]*schema.Field{},
-		m:            &sync.Mutex{},
+		SchemaByType:       map[reflect.Type]*schema.Schema{},
+		FieldByJson:        map[reflect.Type]map[string]*schema.Field{},
+		TypeModelInterface: map[reflect.Type]interface{}{},
+		m:                  &sync.Mutex{},
+	}
+}
+
+func (c *Cache) getModelInterface(p reflect.Type) interface{} {
+	c.m.Lock()
+	defer c.m.Unlock()
+	if model, ok := c.TypeModelInterface[p]; ok {
+		return model
+	} else {
+		i := reflect.New(p).Interface()
+		c.TypeModelInterface[p] = i
+		return i
 	}
 }
 
