@@ -124,32 +124,6 @@ func SetOtherScopes(ctx context.Context, db *gorm.DB) (*gorm.DB, error) {
 	return db, nil
 }
 
-type GenxScopesReq struct {
-	Field string
-	Op    string
-	Value interface{}
-}
-
-func GenxScopes(tSchema schema.Schema, req []GenxScopesReq) (fns []func(db *gorm.DB) *gorm.DB, err error) {
-	for _, v := range req {
-		var pq qParam
-		var fn func(db *gorm.DB) *gorm.DB
-		pq, err = genxParseQ(v.Field, v.Op, v.Value)
-		if err != nil {
-			return
-		}
-		fn, err = gen(pq, tSchema, GetFieldByFieldName)
-
-		if err != nil {
-			return
-		}
-
-		fns = append(fns, fn)
-
-	}
-	return
-}
-
 func HttpQScopes(r *http.Request, tSchema schema.Schema) (fns []func(db *gorm.DB) *gorm.DB, err error) {
 	fns, err = httpQScope(r, tSchema, GetFieldByJson)
 	if err != nil {

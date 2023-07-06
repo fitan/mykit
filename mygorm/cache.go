@@ -64,6 +64,9 @@ func (c *Cache) getModelInterface(p reflect.Type) interface{} {
 func (c *Cache) schema(i any) (*schema.Schema, error) {
 	c.m.Lock()
 	defer c.m.Unlock()
+	if tSchema, ok := c.SchemaByType[reflect.TypeOf(i)]; ok {
+		return tSchema, nil
+	}
 	tSchema, err := schema.Parse(i, &sync.Map{}, schema.NamingStrategy{})
 	if err != nil {
 		return tSchema, errors.Wrap(err, "schema.Parse")

@@ -230,37 +230,3 @@ func httpQueryParseQ(s, op string) (res qParam, err error) {
 	}
 	return
 }
-
-func genxParseQ(path string, op string, value interface{}) (res qParam, err error) {
-	sqlOp, ok := ops[op]
-	if !ok {
-		err = fmt.Errorf("not found op: %s", op)
-		return
-	}
-
-	res.op = op
-	res.field = path
-	res.sqlOp = sqlOp
-
-	switch res.op {
-	case "=", "!=", ">", "<", ">=", "<=", "~=", "!~=":
-		res.value = append(res.value, value)
-	case "?=", "!?=", "><", "<>":
-		vt := reflect.ValueOf(value)
-		if vt.Type().Kind() == reflect.Ptr {
-			vt = vt.Elem()
-		}
-
-		if vt.Kind() != reflect.Slice {
-			err = fmt.Errorf("wrong format %s", value)
-			return
-		}
-
-		for i := 0; i < vt.Len(); i++ {
-			res.value = append(res.value, vt.Index(i).Interface())
-		}
-	default:
-		err = fmt.Errorf("not found op: %s", op)
-	}
-	return
-}

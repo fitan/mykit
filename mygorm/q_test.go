@@ -141,6 +141,7 @@ func TestScopes(t *testing.T) {
 				if err != nil {
 					panic(err)
 				}
+				tmpDB.Scopes()
 				fmt.Println(tmpDB.Find(&data).Statement.SQL.String())
 				//err = tmpDB.Find(&data).Error
 				//if err != nil {
